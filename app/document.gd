@@ -29,6 +29,8 @@ const HINT_DELAY := 0.6
 @onready var debug_button: CheckButton = %Debug
 @onready var loop_button: CheckButton = %Loop
 @onready var probes: Node3D = %FieldProbes
+@onready var labels: Node3D = %Labels
+@onready var labels_button: CheckButton = %ShowLabels
 @onready var notes_button: Button = %NotesButton
 @onready var options_button: Button = %OptionsButton
 @onready var touch: Node = $FieldTouch
@@ -92,6 +94,10 @@ func open(path: String) -> String:
 	probes.touch = touch
 	probes.volume = volume
 	probes.field = field
+	labels.touch = touch
+	labels.volume = volume
+	labels.set_labels(meta.labels)
+	labels_button.visible = not meta.labels.is_empty()
 	slider.max_value = frame_count - 1
 	seek(0)
 
@@ -210,6 +216,7 @@ func seek(value: float) -> void:
 		frames.show_frame(frame)
 	slider.set_value_no_signal(frame)
 	counter.text = "%d / %d" % [frame + 1, frame_count]
+	labels.frame = frame
 	update_field()
 
 
@@ -228,8 +235,8 @@ func update_field() -> void:
 	touch.set_brick(meta.read(current.files[frame]), current.cells, 255)
 
 
-## Frames the volume on the models and the fields, as they are at the
-## current frame.
+## Frames the volume on the models, the fields and the labels, as they are
+## at the current frame.
 func fit() -> void:
 	var bounds := AABB()
 	var first := true
@@ -241,6 +248,9 @@ func fit() -> void:
 	for entry: Meta.Field in meta.fields:
 		var box := entry.box * AABB(Vector3.ZERO, Vector3.ONE)
 		bounds = box if first else bounds.merge(box)
+		first = false
+	for label: Meta.PointLabel in meta.labels:
+		bounds = AABB(label.position, Vector3.ZERO) if first else bounds.expand(label.position)
 		first = false
 	var volume_size := volume.get_measured_size()
 	# Before the native window reports its size, use the size it opens at.

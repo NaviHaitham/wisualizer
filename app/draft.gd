@@ -40,10 +40,26 @@ class Field:
 	var bricks := {}
 
 
+class PointLabel:
+	var text := ""
+	var position := Vector3.ZERO
+	## 0 for the default.
+	var radius := 0.0
+	## The first and last frames it shows at, counted from 0; a last frame of
+	## -1 is the last there is.
+	var frames := Vector2i(0, -1)
+
+	## The first line of its text, to list it by.
+	func title() -> String:
+		var line := text.strip_edges().get_slice("\n", 0)
+		return line if not line.is_empty() else "(no text)"
+
+
 var title := ""
 var times := PackedFloat64Array()
 var models: Array[Model] = []
 var fields: Array[Field] = []
+var labels: Array[PointLabel] = []
 var first_field := 0
 var notes := ""
 ## The images the notes can show, by file name, as sources.
@@ -75,6 +91,7 @@ func open(zip_path: String) -> String:
 	times = meta.times.duplicate()
 	models = []
 	fields = []
+	labels = []
 	images = {}
 	_bounds.clear()
 	for entry in meta.models:
@@ -100,6 +117,14 @@ func open(zip_path: String) -> String:
 			if read_source(IN_ZIP + entry.files[frame]).count(0) < field.cells.x * field.cells.y * field.cells.z:
 				field.bricks[frame] = IN_ZIP + entry.files[frame]
 		fields.append(field)
+	for entry in meta.labels:
+		var label := PointLabel.new()
+		label.text = entry.text
+		label.position = entry.position
+		label.radius = entry.radius
+		# Through the last frame stays so as frames are added.
+		label.frames = Vector2i(entry.frames.x, -1 if entry.frames.y >= times.size() - 1 else entry.frames.y)
+		labels.append(label)
 	first_field = meta.first_field
 	notes = meta.read(meta.notes).get_string_from_utf8()
 	var images_folder := (meta.notes.get_base_dir().path_join(IMAGES_FOLDER) if not meta.notes.is_empty() else IMAGES_FOLDER).trim_prefix("/")
@@ -273,6 +298,12 @@ func problems() -> String:
 		if names.has(_folder(field.name)):
 			return "Two fields are both named %s." % field.name
 		names[_folder(field.name)] = true
+	for label in labels:
+		if label.text.strip_edges().is_empty():
+			return "A label has no text."
+		var last := label.frames.y if label.frames.y >= 0 else times.size() - 1
+		if label.frames.x < 0 or last < label.frames.x or last >= times.size():
+			return "The label %s shows at frames %d to %d, but there are %d frames." % [label.title(), label.frames.x + 1, last + 1, times.size()]
 	return ""
 
 
@@ -317,6 +348,15 @@ func save(target: String) -> String:
 		})
 	if not fields.is_empty():
 		manifest.field = fields[clampi(first_field, 0, fields.size() - 1)].name
+	if not labels.is_empty():
+		manifest.labels = []
+	for label in labels:
+		var entry := {text = label.text.strip_edges(), position = _array(label.position)}
+		if label.radius > 0.0:
+			entry.radius = label.radius
+		if label.frames != Vector2i(0, -1):
+			entry.frames = [label.frames.x + 1, (label.frames.y if label.frames.y >= 0 else times.size() - 1) + 1]
+		manifest.labels.append(entry)
 	if not notes.strip_edges().is_empty():
 		_store(packer, NOTES_FILE, notes.to_utf8_buffer())
 		manifest.notes = NOTES_FILE

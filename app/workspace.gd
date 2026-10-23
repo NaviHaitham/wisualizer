@@ -1,6 +1,6 @@
 extends Window
 ## The desktop's editor for a ZIP: a window where GLBs, bricks and images
-## are imported, frames, models and fields are set, and the notes are
+## are imported, frames, models, fields and labels are set, and the notes are
 ## written with a live preview, then saved as a ZIP in the library. Edits
 ## a [Draft]; see docs/zip-format.md for what it saves.
 
@@ -51,6 +51,7 @@ func _show_draft() -> void:
 	show_frames()
 	show_models()
 	show_fields()
+	show_labels()
 	show_images()
 	refresh_preview()
 
@@ -59,6 +60,8 @@ func _show_draft() -> void:
 func show_page(page_name: String) -> void:
 	for page in %Pages.get_children():
 		page.visible = page.name == page_name
+	if page_name == "Labels":
+		_show_model_bounds()
 	# Through its group, so the other sections let go; only toggled fires.
 	(%Pages.get_node("../../Sidebar/Column/%sSection" % page_name) as Button).button_pressed = true
 
@@ -183,9 +186,15 @@ func remove_frame() -> void:
 			elif frame > index:
 				bricks[frame - 1] = field.bricks[frame]
 		field.bricks = bricks
+	for label in draft.labels:
+		if index < label.frames.x:
+			label.frames.x -= 1
+		if index <= label.frames.y:
+			label.frames.y -= 1
 	show_frames()
 	show_models()
 	show_fields()
+	show_labels()
 
 
 func edit_frame() -> void:
@@ -361,6 +370,88 @@ func remove_field() -> void:
 		if draft.first_field >= draft.fields.size():
 			draft.first_field = 0
 		show_fields(index - 1)
+
+
+# Labels
+
+## Adds a label at the models' center, and starts on its text.
+func add_label() -> void:
+	var label := Draft.PointLabel.new()
+	var bounds := draft.model_bounds()
+	if bounds.has_volume():
+		label.position = bounds.get_center()
+	draft.labels.append(label)
+	show_labels(draft.labels.size() - 1)
+	%LabelText.grab_focus()
+
+
+func show_labels(selected := -1) -> void:
+	var list: ItemList = %LabelList
+	if selected < 0 and list.is_anything_selected():
+		selected = list.get_selected_items()[0]
+	list.clear()
+	for label in draft.labels:
+		list.add_item(label.title())
+	selected = clampi(selected, -1, draft.labels.size() - 1)
+	if selected >= 0:
+		list.select(selected)
+	show_label(selected)
+
+
+func show_label(index: int) -> void:
+	%LabelForm.get_parent().visible = index >= 0
+	if index < 0:
+		return
+	var label: Draft.PointLabel = draft.labels[index]
+	_filling = true
+	%LabelText.text = label.text
+	%LabelPosition.text = _vector_text(label.position)
+	%LabelRadius.text = _number(label.radius) if label.radius > 0.0 else ""
+	if label.frames == Vector2i(0, -1):
+		%LabelFrames.text = ""
+	else:
+		var last := label.frames.y if label.frames.y >= 0 else draft.times.size() - 1
+		%LabelFrames.text = "%d, %d" % [label.frames.x + 1, last + 1]
+	_filling = false
+
+
+func edit_label() -> void:
+	if _filling:
+		return
+	var index := _selected(%LabelList)
+	if index < 0:
+		return
+	var label: Draft.PointLabel = draft.labels[index]
+	label.text = %LabelText.text
+	%LabelList.set_item_text(index, label.title())
+	var position := _numbers(%LabelPosition.text)
+	if position.size() == 3:
+		label.position = Vector3(position[0], position[1], position[2])
+	var radius: String = %LabelRadius.text.strip_edges()
+	label.radius = maxf(radius.to_float(), 0.0) if radius.is_valid_float() else 0.0
+	# Counted from 1, as the controls show them; one number is one frame.
+	var frames := _numbers(%LabelFrames.text)
+	if frames.is_empty():
+		label.frames = Vector2i(0, -1)
+	elif frames.size() <= 2:
+		label.frames = Vector2i(int(frames[0]) - 1, int(frames[-1]) - 1)
+
+
+func remove_label() -> void:
+	var index := _selected(%LabelList)
+	if index >= 0:
+		draft.labels.remove_at(index)
+		show_labels(index - 1)
+
+
+## Where the models are, to place labels by. Reading every model's bounds
+## takes a while, so only while the labels show.
+func _show_model_bounds() -> void:
+	var bounds := draft.model_bounds()
+	if bounds.has_volume():
+		%LabelBounds.text = "From %s to %s, in the models' units" % [_vector_text(bounds.position), _vector_text(bounds.end)]
+	else:
+		%LabelBounds.text = "Import a GLB to see where the models are."
 
 
 # Images

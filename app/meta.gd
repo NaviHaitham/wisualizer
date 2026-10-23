@@ -36,10 +36,26 @@ class Field:
 		return text if unit.is_empty() else "%s %s" % [text, unit]
 
 
+## Text shown in the volume at a point, while a controller is near it.
+class PointLabel:
+	var text := ""
+	## The point, in model units.
+	var position := Vector3.ZERO
+	## How near a controller comes for the text to show, in model units, or
+	## 0 for the default.
+	var radius := 0.0
+	## The first and last frames it shows at, counted from 0.
+	var frames := Vector2i.ZERO
+
+	func shows_at(frame: int) -> bool:
+		return frame >= frames.x and frame <= frames.y
+
+
 var title := ""
 var times := PackedFloat64Array()
 var models: Array[Model] = []
 var fields: Array[Field] = []
+var labels: Array[PointLabel] = []
 ## The index of the field shown first.
 var first_field := 0
 ## Where the notes are in the ZIP, or "" without notes.
@@ -89,6 +105,18 @@ func open(path: String) -> String:
 		fields.append(field)
 	if models.is_empty():
 		return "The ZIP has no models."
+	for entry in manifest.get("labels", []):
+		var label := PointLabel.new()
+		label.text = str(entry.get("text", "")).strip_edges()
+		var position: Array = entry.get("position", [])
+		if label.text.is_empty() or position.size() != 3:
+			return "Label %d needs text and a position, [x, y, z]." % (labels.size() + 1)
+		label.position = _vector(position)
+		label.radius = maxf(float(entry.get("radius", 0.0)), 0.0)
+		# Counted from 1 in meta.json, as frames are everywhere a person sees.
+		var span: Array = entry.get("frames", [1, times.size()])
+		label.frames = Vector2i(int(span[0]) - 1, int(span[-1]) - 1) if not span.is_empty() else Vector2i(0, times.size() - 1)
+		labels.append(label)
 	notes = str(manifest.get("notes", ""))
 	return ""
 
