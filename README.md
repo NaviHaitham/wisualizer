@@ -33,7 +33,10 @@ the points a ZIP has labels for: bring a controller to one, or the pointer on a
 desktop, to read it.
 
 Resize the volume from its bottom corners; marks there show where when it
-opens. The bar below it plays, pauses and scrubs the frames, and shows or hides
+opens. On Apple Vision Pro, pinch and drag the model to turn it, like Apple's
+globe: sideways turns it about the vertical, up and down tilts it, and the
+tilt springs back when you let go. The volume makes room for it to turn any
+way, and **Reset** in the options turns it back. On desktop, drag to orbit the view. The bar below it plays, pauses and scrubs the frames, and shows or hides
 the notes and the options (speed, loop, debug view). With a keyboard, Space
 plays or pauses and the arrow keys step a frame.
 
@@ -75,10 +78,14 @@ In `notes.txt`, `[img]images/flow.png[/img]` shows an image from the ZIP, with
 any of Godot's `[img]` options, such as `[img width=320]…[/img]`. Paths are
 relative to `notes.txt`. PNG, JPEG, WebP and SVG work.
 
-Formulas are SVG images: write them in LaTeX and export SVG with any tool, such
-as an online LaTeX-to-SVG converter. SVGs stay sharp at any size, and their
-`currentColor`, which LaTeX converters use for the text, takes the notes' text
-color. Short formulas can also be plain text, such as `Re = ρUD/μ`.
+Formulas are TeX: `[math]\frac{\partial u}{\partial t}[/math]` sets one in the
+line, on the text's baseline, and `[math=display]…[/math]` on a line of its own.
+MathJax typesets them, with all of its packages, such as `ams`, `physics` and
+`mhchem`. A formula that doesn't typeset shows its source and what's wrong.
+Short formulas can also be plain text, such as `Re = ρUD/μ`.
+
+SVG images, such as formulas exported from LaTeX, stay sharp at any size, and
+their `currentColor` takes the notes' text color.
 
 `[url=frame:9]frame 9[/url]` is a link that pauses on frame 9.
 
