@@ -10,10 +10,10 @@ extends Node3D
 
 const Meta := preload("res://app/meta.gd")
 ## The dot's diameter, the text's size and its gap above the dot: in
-## meters in a volume, and in pixels on a desktop, which has no physical
-## size to keep.
+## meters in a volume as it opens, growing and shrinking with the model as
+## the volume is resized, and in pixels on a desktop.
 const DOT_SIZE := 0.012
-const TEXT_HEIGHT := 0.02
+const TEXT_HEIGHT := 0.05
 const TEXT_GAP := 0.008
 const DOT_PIXELS := 14.0
 const TEXT_PIXELS := 17.0
@@ -147,12 +147,14 @@ func _process(_delta: float) -> void:
 			shown[_selected] = true
 		else:
 			_selected = -1
+	# Dots and text scale with the model, from their size as the volume
+	# opens; reach and taps keep their physical size, for the hand.
+	var drawn_per_unit := _opening_meters_per_unit()
 	for index in _labels.size():
 		var label := _labels[index]
 		var dot := _dots[index]
 		dot.visible = label.shows_at(frame)
-		# Dots and text keep their physical size, whatever the volume's scale.
-		var dot_size := _units(label.position, DOT_SIZE, DOT_PIXELS, meters_per_unit, camera)
+		var dot_size := _units(label.position, DOT_SIZE, DOT_PIXELS, drawn_per_unit, camera)
 		dot.pixel_size = dot_size / DOT_TEXTURE_SIZE
 		if index < _targets.size():
 			var target := _targets[index]
@@ -161,8 +163,8 @@ func _process(_delta: float) -> void:
 		var text := _texts[index]
 		text.visible = dot.visible and shown.has(index)
 		if text.visible:
-			text.pixel_size = _units(label.position, TEXT_HEIGHT, TEXT_PIXELS, meters_per_unit, camera) / FONT_SIZE
-			var offset := Vector3.UP * (dot_size * 0.5 + _units(label.position, TEXT_GAP, GAP_PIXELS, meters_per_unit, camera))
+			text.pixel_size = _units(label.position, TEXT_HEIGHT, TEXT_PIXELS, drawn_per_unit, camera) / FONT_SIZE
+			var offset := Vector3.UP * (dot_size * 0.5 + _units(label.position, TEXT_GAP, GAP_PIXELS, drawn_per_unit, camera))
 			# Above the dot, or below it where the top of the volume, which
 			# hides what's outside it, leaves no room.
 			# The model's turntable rotates Labels, but "above" and clipping
@@ -308,6 +310,11 @@ func _meters_per_unit() -> float:
 	if physical == Vector3.ZERO:
 		physical = volume.window_size
 	return physical[volume.keep_aspect] / volume.size
+
+
+## Meters per model unit at the size the volume opens at.
+func _opening_meters_per_unit() -> float:
+	return volume.window_size[volume.keep_aspect] / volume.size
 
 
 static func _dot_texture() -> ImageTexture:
