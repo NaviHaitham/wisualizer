@@ -78,7 +78,9 @@ func get_measured_size() -> Vector3:
 ## Window's world, so [method Node3D.to_local] on the volume's content gives
 ## where they point within it.
 func get_controllers() -> Array[XRController3D]:
-	return _backend.get_controllers() if _backend != null else []
+	if _backend != null:
+		return _backend.get_controllers()
+	return []
 
 
 ## The size of the visible box in world units, following the volume's
