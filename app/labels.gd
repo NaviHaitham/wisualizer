@@ -1,7 +1,8 @@
 extends Node3D
 ## The ZIP's labels: a dot at each label's point, and the label's text over
 ## it while a controller's tip is near the point or, on a desktop, while the
-## pointer is over the dot. Only the current frame's labels show, and
+## pointer is over the dot. On visionOS, tapping a dot selects its text;
+## tapping it again hides it. Only the current frame's labels show, and
 ## nothing does while hidden.
 ##
 ## Lives beside the Window's content, with no transform of its own, so its
@@ -31,6 +32,8 @@ const DEFAULT_REACH := 0.03
 const LEAVE := 1.25
 ## How near the desktop pointer comes to a dot, in pixels.
 const HOVER_DISTANCE := 24.0
+## A 4 cm diameter target is easier to click than the 12 mm dot.
+const TAP_RADIUS := 0.02
 
 ## Finds each controller's tip, as for haptics.
 var touch: Node
@@ -46,17 +49,36 @@ var _text_heights := PackedFloat32Array()
 ## Per controller: the label whose text it shows, or -1.
 var _held := {}
 var _pointer_inside := false
+var _selected := -1
+var _targets: Array[Area3D] = []
+## Every target has the same physical radius; share its collision resource.
+var _target_shape := SphereShape3D.new()
 
 
 func _ready() -> void:
 	var window := get_window()
 	window.mouse_entered.connect(func() -> void: _pointer_inside = true)
 	window.mouse_exited.connect(func() -> void: _pointer_inside = false)
+	visibility_changed.connect(_on_visibility_changed)
+
+
+func _on_visibility_changed() -> void:
+	if is_visible_in_tree():
+		return
+	_selected = -1
+	_held.clear()
+	for text in _texts:
+		text.hide()
+	for target in _targets:
+		target.input_ray_pickable = false
 
 
 func set_labels(labels: Array[Meta.PointLabel]) -> void:
 	_labels = labels
 	var dot_texture := _dot_texture()
+	var spatial_input := SpatialPlatform.current() == SpatialPlatform.Kind.VISIONOS
+	if spatial_input and volume != null:
+		_update_target_size(_meters_per_unit())
 	for label in labels:
 		var dot := Sprite3D.new()
 		dot.texture = dot_texture
@@ -67,6 +89,21 @@ func set_labels(labels: Array[Meta.PointLabel]) -> void:
 		dot.position = label.position
 		add_child(dot)
 		_dots.append(dot)
+		# RealityKit sends spatial clicks to collision objects, not sprites.
+		if spatial_input:
+			var target := Area3D.new()
+			target.position = label.position
+			target.collision_mask = 0
+			target.monitoring = false
+			target.monitorable = false
+			target.visible = label.shows_at(frame)
+			target.input_ray_pickable = target.visible and is_visible_in_tree()
+			target.input_event.connect(_on_label_input.bind(_dots.size() - 1))
+			var shape := CollisionShape3D.new()
+			shape.shape = _target_shape
+			target.add_child(shape)
+			add_child(target)
+			_targets.append(target)
 		var text := Label3D.new()
 		text.text = label.text
 		text.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -82,9 +119,11 @@ func set_labels(labels: Array[Meta.PointLabel]) -> void:
 
 
 func _process(_delta: float) -> void:
-	if not visible or volume == null or _labels.is_empty():
+	if not is_visible_in_tree() or volume == null or _labels.is_empty():
 		return
 	var meters_per_unit := _meters_per_unit()
+	if not _targets.is_empty():
+		_update_target_size(meters_per_unit)
 	var camera := get_viewport().get_camera_3d() if SpatialPlatform.current() == SpatialPlatform.Kind.DESKTOP else null
 	var shown := {}
 	for controller in volume.get_controllers():
@@ -94,6 +133,11 @@ func _process(_delta: float) -> void:
 		_held[controller] = index
 		shown[index] = true
 	shown[_hovered()] = true
+	if _selected >= 0:
+		if _labels[_selected].shows_at(frame):
+			shown[_selected] = true
+		else:
+			_selected = -1
 	for index in _labels.size():
 		var label := _labels[index]
 		var dot := _dots[index]
@@ -101,6 +145,10 @@ func _process(_delta: float) -> void:
 		# Dots and text keep their physical size, whatever the volume's scale.
 		var dot_size := _units(label.position, DOT_SIZE, DOT_PIXELS, meters_per_unit, camera)
 		dot.pixel_size = dot_size / DOT_TEXTURE_SIZE
+		if index < _targets.size():
+			var target := _targets[index]
+			target.visible = dot.visible
+			target.input_ray_pickable = dot.visible
 		var text := _texts[index]
 		text.visible = dot.visible and shown.has(index)
 		if text.visible:
@@ -108,10 +156,90 @@ func _process(_delta: float) -> void:
 			var offset := Vector3.UP * (dot_size * 0.5 + _units(label.position, TEXT_GAP, GAP_PIXELS, meters_per_unit, camera))
 			# Above the dot, or below it where the top of the volume, which
 			# hides what's outside it, leaves no room.
-			var top := volume.position.y + volume.get_region_size().y * 0.5
-			var fits := label.position.y + offset.y + _text_heights[index] * text.pixel_size <= top
+			# The model's turntable rotates Labels, but "above" and clipping
+			# are relative to the volume that contains it.
+			var point := volume.to_local(to_global(label.position))
+			var top := volume.get_region_size().y * 0.5
+			var fits := point.y + offset.y + _text_heights[index] * text.pixel_size <= top
 			text.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM if fits else VERTICAL_ALIGNMENT_TOP
-			text.position = label.position + (offset if fits else -offset)
+			text.position = to_local(volume.to_global(point + (offset if fits else -offset)))
+
+
+func _update_target_size(meters_per_unit: float) -> void:
+	var radius := TAP_RADIUS / meters_per_unit
+	# Setting an unchanged radius still rebuilds the physics shape and emits
+	# Resource.changed, which makes RealityKit recreate its collision shape.
+	if not is_equal_approx(_target_shape.radius, radius):
+		_target_shape.radius = radius
+
+
+func _on_label_input(_camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape: int, index: int) -> void:
+	if not is_visible_in_tree() or not _labels[index].shows_at(frame):
+		return
+	if event is InputEventScreenTouch:
+		if not event.pressed or event.canceled:
+			return
+	elif event is InputEventMouseButton:
+		if not event.pressed or event.canceled or event.button_index != MOUSE_BUTTON_LEFT:
+			return
+	else:
+		return
+	_selected = -1 if _selected == index else index
+
+
+## The model's grab bounds can receive a tap in front of a visible label.
+## Resolve that tap against the labels before starting a model drag.
+func select_from_spatial_touch(camera: Node, event: InputEvent) -> bool:
+	if not is_visible_in_tree() or volume == null or not event.is_class("InputEventSpatialTouch"):
+		return false
+	if not event.get("pressed") or event.get("canceled"):
+		return false
+	var origin: Vector3
+	var direction: Vector3
+	# Use the same camera projection the bridge uses for event.position.
+	# This also works for simulator mouse events without a selection ray.
+	if camera != null and camera.has_method("project_ray_origin") and camera.has_method("project_ray_normal"):
+		origin = camera.project_ray_origin(event.get("position"))
+		direction = camera.project_ray_normal(event.get("position"))
+	elif event.get("has_selection_ray"):
+		origin = event.get("selection_ray_origin")
+		direction = event.get("selection_ray_direction")
+	else:
+		return false
+	var index := _label_along_ray(origin, direction)
+	if index < 0:
+		return false
+	_selected = -1 if _selected == index else index
+	return true
+
+
+## Nearest current-frame target intersected by a world-space ray. Work in
+## label coordinates so the targets follow the model's turntable.
+func _label_along_ray(origin: Vector3, direction: Vector3) -> int:
+	var local_direction := (global_basis.inverse() * direction).normalized()
+	if local_direction.is_zero_approx():
+		return -1
+	var local_origin := to_local(origin)
+	var radius := TAP_RADIUS / _meters_per_unit()
+	var found := -1
+	var nearest_distance := INF
+	for index in _labels.size():
+		if not _labels[index].shows_at(frame):
+			continue
+		var offset := _labels[index].position - local_origin
+		var along := offset.dot(local_direction)
+		var perpendicular := offset.length_squared() - along * along
+		var remainder := radius * radius - perpendicular
+		if remainder < 0.0:
+			continue
+		var half_chord := sqrt(remainder)
+		if along + half_chord < 0.0:
+			continue
+		var distance := maxf(along - half_chord, 0.0)
+		if distance < nearest_distance:
+			found = index
+			nearest_distance = distance
+	return found
 
 
 ## The label at the current frame nearest [param point], in model units,

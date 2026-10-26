@@ -75,6 +75,8 @@ var _tilt_axis := Vector3.RIGHT
 ## when it began, the turn and the tilt then, and how fast the yaw was
 ## changing. The tilt is kept before its easing toward the limit.
 var _drag := -1
+## A gesture that selected a label must not also turn the model.
+var _label_touch := -1
 var _drag_start := Vector3.ZERO
 var _drag_yaw := 0.0
 var _drag_tilt := 0.0
@@ -280,8 +282,20 @@ func update_field() -> void:
 ## hand. On release the tilt springs back and the turn carries on a little.
 ## Spatial events only come from visionOS; on desktop, the orbit camera
 ## turns the view instead.
-func turn_by_drag(_camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape: int) -> void:
+func turn_by_drag(camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape: int) -> void:
 	if event.is_class("InputEventSpatialTouch"):
+		if _label_touch != -1 and event.get("index") == _label_touch:
+			if not event.get("pressed") or event.get("canceled"):
+				_label_touch = -1
+			return
+		if event.get("canceled"):
+			if event.get("index") == _drag:
+				_drag = -1
+				_tilt_target = 0.0
+			return
+		if event.get("pressed") and _drag < 0 and labels.select_from_spatial_touch(camera, event):
+			_label_touch = event.get("index")
+			return
 		if event.get("pressed") and _drag < 0:
 			_begin_drag(event.get("index"), event.get("world_position"))
 		elif not event.get("pressed") and event.get("index") == _drag:
@@ -290,6 +304,8 @@ func turn_by_drag(_camera: Node, event: InputEvent, _position: Vector3, _normal:
 			_yaw_target += clampf(_yaw_speed * SPIN_TIME, -PI, PI)
 		return
 	if not event.is_class("InputEventSpatialDrag"):
+		return
+	if _label_touch != -1 and event.get("index") == _label_touch:
 		return
 	var at: Vector3 = event.get("world_position")
 	if _drag < 0:
