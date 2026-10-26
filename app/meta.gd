@@ -114,8 +114,18 @@ func open(path: String) -> String:
 		label.position = _vector(position)
 		label.radius = maxf(float(entry.get("radius", 0.0)), 0.0)
 		# Counted from 1 in meta.json, as frames are everywhere a person sees.
-		var span: Array = entry.get("frames", [1, times.size()])
-		label.frames = Vector2i(int(span[0]) - 1, int(span[-1]) - 1) if not span.is_empty() else Vector2i(0, times.size() - 1)
+		var span = entry.get("frames", [1, times.size()])
+		var frame_error := "Label %d needs frames [n] or [first, last], with whole frame numbers from 1 to %d in order." % [labels.size() + 1, times.size()]
+		if not span is Array or span.is_empty() or span.size() > 2:
+			return frame_error
+		for value in span:
+			if not (value is int or value is float):
+				return frame_error
+			if not is_finite(float(value)) or value < 1 or value > times.size() or value != floor(value):
+				return frame_error
+		label.frames = Vector2i(int(span[0]) - 1, int(span[-1]) - 1)
+		if label.frames.x > label.frames.y:
+			return frame_error
 		labels.append(label)
 	notes = str(manifest.get("notes", ""))
 	return ""

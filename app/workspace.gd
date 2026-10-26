@@ -186,7 +186,15 @@ func remove_frame() -> void:
 			elif frame > index:
 				bricks[frame - 1] = field.bricks[frame]
 		field.bricks = bricks
-	for label in draft.labels:
+	# Labels with no surviving frames leave with their last frame. In
+	# particular, never turn an explicit last frame of 0 into the -1 default.
+	for label_index in range(draft.labels.size() - 1, -1, -1):
+		var label := draft.labels[label_index]
+		# The frame was already removed, so this was the last index before it.
+		var last := label.frames.y if label.frames.y >= 0 else draft.times.size()
+		if label.frames.x == last and index == last:
+			draft.labels.remove_at(label_index)
+			continue
 		if index < label.frames.x:
 			label.frames.x -= 1
 		if index <= label.frames.y:
