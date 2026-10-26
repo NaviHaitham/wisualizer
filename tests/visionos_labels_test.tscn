@@ -1,0 +1,9 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://app/launcher.tscn" id="1"]
+[ext_resource type="Script" path="res://simulator_test.gd" id="2"]
+
+[node name="Launcher" instance=ExtResource("1")]
+
+[node name="SimulatorTest" type="Node" parent="."]
+script = ExtResource("2")
