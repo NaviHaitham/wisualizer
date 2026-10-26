@@ -11,6 +11,7 @@ const SPEEDS := [0.5, 1.0, 2.0, 4.0]
 const Meta := preload("res://app/meta.gd")
 const ModelFrames := preload("res://app/model_frames.gd")
 const NotesImages := preload("res://app/notes_images.gd")
+const LabelWorkspace := preload("res://app/workspace.tscn")
 ## Seconds a volume takes to open before the resize hint shows.
 const HINT_DELAY := 0.6
 ## Radians the model turns as the hand moves by its radius. More than one,
@@ -64,6 +65,8 @@ var playing := false
 var elapsed := 0.0
 ## The images the notes show, kept for as long as the document is open.
 var notes_images := NotesImages.new()
+var _source_path := ""
+var _label_editor: Window
 ## How far the model is turned about the vertical, and tilted toward the
 ## person about [member _tilt_axis], now and where it is heading.
 var yaw := 0.0
@@ -117,6 +120,7 @@ func open(path: String) -> String:
 	var error := meta.open(path)
 	if not error.is_empty():
 		return error
+	_source_path = path
 	frame_count = meta.times.size()
 	field_index = meta.first_field
 	for entry in meta.models:
@@ -215,8 +219,46 @@ func show_resize_hint() -> void:
 
 
 func close() -> void:
+	if is_instance_valid(_label_editor):
+		if _label_editor.is_saving():
+			return
+		_label_editor.close()
 	meta.close()
 	queue_free()
+
+
+## Opens the selected label in the same form used by the desktop workspace.
+func edit_labels() -> void:
+	if is_instance_valid(_label_editor):
+		_label_editor.show()
+		_label_editor.grab_focus()
+		return
+	_label_editor = LabelWorkspace.instantiate()
+	add_child(_label_editor)
+	_label_editor.saved.connect(_on_labels_saved)
+	var error: String = _label_editor.start_labels(_source_path, labels._selected)
+	if not error.is_empty():
+		_label_editor._show_status(error)
+
+
+## Replace only label nodes; keep the native volume, playback and model.
+func _on_labels_saved(path: String, _play: bool) -> void:
+	var updated := Meta.new()
+	var error := updated.open(path)
+	if not error.is_empty():
+		updated.close()
+		_label_editor._show_status(error)
+		return
+	meta.close()
+	meta = updated
+	_source_path = path
+	for index in models.size():
+		models[index].setup(path, meta.models[index])
+	labels.set_labels(meta.labels)
+	var list: ItemList = _label_editor.get_node("%LabelList")
+	labels._selected = list.get_selected_items()[0] if list.is_anything_selected() else -1
+	labels_button.visible = not meta.labels.is_empty()
+	fit()
 
 
 func toggle_play() -> void:

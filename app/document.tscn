@@ -276,6 +276,14 @@ tooltip_text = "Show the labels' points, and a label's text when a controller co
 button_pressed = true
 text = "Labels"
 
+[node name="EditLabels" type="Button" parent="Model/Options/Bar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Add, edit or remove 3D labels and save them to the ZIP"
+text = "Edit labels"
+
 [node name="Separator" type="VSeparator" parent="Model/Options/Bar"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -322,6 +330,7 @@ bbcode_enabled = true
 [connection signal="close_requested" from="Model" to="." method="close"]
 [connection signal="input_event" from="Model/Turntable/Grab" to="." method="turn_by_drag"]
 [connection signal="pressed" from="Model/Options/Bar/Reset" to="." method="reset_turn"]
+[connection signal="pressed" from="Model/Options/Bar/EditLabels" to="." method="edit_labels"]
 [connection signal="resized" from="Model/Volume" to="." method="fit" unbinds=1]
 [connection signal="pressed" from="Model/Controls/Bar/Play" to="." method="toggle_play"]
 [connection signal="value_changed" from="Model/Controls/Bar/Frame" to="." method="seek"]

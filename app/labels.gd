@@ -74,6 +74,15 @@ func _on_visibility_changed() -> void:
 
 
 func set_labels(labels: Array[Meta.PointLabel]) -> void:
+	_selected = -1
+	_held.clear()
+	for child in get_children():
+		remove_child(child)
+		child.queue_free()
+	_dots.clear()
+	_texts.clear()
+	_targets.clear()
+	_text_heights.clear()
 	_labels = labels
 	var dot_texture := _dot_texture()
 	var spatial_input := SpatialPlatform.current() == SpatialPlatform.Kind.VISIONOS
