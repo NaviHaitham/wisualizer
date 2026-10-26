@@ -4,9 +4,10 @@ var out := ProjectSettings.globalize_path("res://builds/simulator-test/")
 var packer := PCKPacker.new()
 
 func _initialize() -> void:
-	ProjectSettings.set_setting("application/run/main_scene", "res://simulator_test.tscn")
+	var editing := OS.get_cmdline_user_args().has("--edit-labels")
+	ProjectSettings.set_setting("application/run/main_scene", "res://tests/label_edit_test.tscn" if editing else "res://simulator_test.tscn")
 	ProjectSettings.save_custom(out + "test-project.binary")
-	packer.pck_start(out + "simulator-test.pck")
+	packer.pck_start(out + ("label-edit-test.pck" if editing else "simulator-test.pck"))
 	var source := FileAccess.open(out + "wisualizer.pck", FileAccess.READ)
 	assert(source != null, "Export visionOS to builds/simulator-test/wisualizer.xcodeproj first.")
 	assert(source.get_32() == 0x43504447 and source.get_32() == 4, "The test packer expects Godot PCK version 4.")
@@ -26,8 +27,12 @@ func _initialize() -> void:
 			packer.add_file_from_buffer("res://" + path, source.get_buffer(size))
 		source.seek(next)
 	packer.add_file("res://project.binary", out + "test-project.binary")
-	packer.add_file("res://simulator_test.tscn", "res://tests/visionos_labels_test.tscn")
-	packer.add_file("res://simulator_test.gd", "res://tests/visionos_labels_test.gd")
+	if editing:
+		packer.add_file("res://tests/label_edit_test.tscn", "res://tests/label_edit_test.tscn")
+		packer.add_file("res://tests/label_edit_test.gd", "res://tests/label_edit_test.gd")
+	else:
+		packer.add_file("res://simulator_test.tscn", "res://tests/visionos_labels_test.tscn")
+		packer.add_file("res://simulator_test.gd", "res://tests/visionos_labels_test.gd")
 	var result := packer.flush()
 	print("Test PCK result: ", result)
 	quit(result)

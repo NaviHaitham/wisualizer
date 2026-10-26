@@ -33,6 +33,11 @@ ZIP with notes shows them beside the volume; see [ZIPs](#zips). Dots mark
 the points a ZIP has labels for: bring a controller to one, or the pointer on a
 desktop, to read it. On visionOS, tap a dot (or click it in the simulator) to
 show its text; tap the same dot again to hide it, or another dot to switch.
+To change labels in an open model, open its options and choose **Edit labels**.
+Select a label to change its text, point, controller radius or frame range;
+add and remove labels in the same list. **Save** refreshes that model in place,
+and **Save As** keeps the changes in a separate ZIP. Blank Frames means every
+frame, and blank Radius uses 3 cm. This editor also works on visionOS.
 
 Resize the volume from its bottom corners; marks there show where when it
 opens. On Apple Vision Pro, pinch and drag the model to turn it, like Apple's
@@ -100,6 +105,7 @@ godot --headless --path . --script res://tests/labels_test.gd
 godot --headless --path . --script res://tests/labels_click_test.gd
 godot --headless --path . --script res://tests/labels_routing_test.gd
 godot --headless --path . --script res://tests/document_integration_test.gd
+godot --headless --path . res://tests/label_edit_test.tscn
 ```
 
 The checks cover ZIP parsing, saving and reopening, frame deletion through the

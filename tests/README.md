@@ -9,6 +9,7 @@ godot --headless --path . --script res://tests/labels_test.gd
 godot --headless --path . --script res://tests/labels_click_test.gd
 godot --headless --path . --script res://tests/labels_routing_test.gd
 godot --headless --path . --script res://tests/document_integration_test.gd
+godot --headless --path . res://tests/label_edit_test.tscn
 ```
 
 This writes fixtures to `builds/labels-tests/` and exits with a nonzero code
@@ -30,6 +31,15 @@ The document integration runner uses the fixture from `labels_test.gd`. It
 checks the Labels switch after moving labels into the turntable, fitting
 rotated labels (including documents with only labels), and TeX rendering and
 preview refresh. The custom engine must include its MathJax module.
+
+The editing runner opens **Edit labels** on a real document, checks validation,
+saves through the worker thread, and verifies Save As, in-place text/position/
+range refresh, stable volume/model nodes, and unchanged non-label ZIP members.
+Set `LABEL_EDIT_ZIP` to test another ZIP with at least two labels. On visionOS
+it defaults to `user://Hall sensor-3d-labels-test.zip` and writes
+`user://label-edit-tests/results.json`. To package that runner, pass
+`-- --edit-labels` to `pack_visionos_labels_test.gd`; install its
+`label-edit-test.pck` as the app's `wisualizer.pck`.
 
 ## Native visionOS simulator
 
