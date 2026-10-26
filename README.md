@@ -11,6 +11,7 @@ Wisualizer needs a custom Godot 4.7 build and the GodotRealityKit plugin, both
 from the `arvr4mp` branch of these forks:
 
 - Engine: [zilongpa/godot](https://github.com/zilongpa/godot/tree/arvr4mp).
+  Use a revision containing the MathJax module (`fbb37a545f` or later).
   Build the macOS editor and the visionOS export template with SCons.
 - Plugin: [zilongpa/plugins-for-godot](https://github.com/zilongpa/plugins-for-godot/tree/arvr4mp).
   Build it with SCons as in its `godotrealitykit/documentation/Building.md`,
@@ -30,7 +31,8 @@ there to open it again, or delete it from the library (the original file
 stays). Each ZIP opens as its own volume, so several can be open at once. A
 ZIP with notes shows them beside the volume; see [ZIPs](#zips). Dots mark
 the points a ZIP has labels for: bring a controller to one, or the pointer on a
-desktop, to read it.
+desktop, to read it. On visionOS, tap a dot (or click it in the simulator) to
+show its text; tap the same dot again to hide it, or another dot to switch.
 
 Resize the volume from its bottom corners; marks there show where when it
 opens. On Apple Vision Pro, pinch and drag the model to turn it, like Apple's
@@ -90,6 +92,22 @@ their `currentColor` takes the notes' text color.
 `[url=frame:9]frame 9[/url]` is a link that pauses on frame 9.
 
 ## Code
+
+Run the labels regression checks with the custom Godot build described above:
+
+```sh
+godot --headless --path . --script res://tests/labels_test.gd
+godot --headless --path . --script res://tests/labels_click_test.gd
+godot --headless --path . --script res://tests/labels_routing_test.gd
+godot --headless --path . --script res://tests/document_integration_test.gd
+```
+
+The checks cover ZIP parsing, saving and reopening, frame deletion through the
+workspace, controller proximity selection, tap selection and visibility,
+collision-shape updates when a volume resizes, model-bounds input routing,
+rotated text placement and TeX preview refresh. Fixtures are written to the
+ignored `builds/labels-tests/` directory, or to `TEST_DIR` when set.
+For native visionOS simulator checks, see [tests/README.md](tests/README.md).
 
 | Path | Purpose |
 | --- | --- |

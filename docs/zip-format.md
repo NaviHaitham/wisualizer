@@ -88,11 +88,19 @@ many as there are frames. Models are listed, and switched, in the order of
 A label is a dot at a point in the volume, and text that shows over the dot
 while a controller's tip is near it, until the tip is 1.25 times as far; where
 labels overlap, the nearest one shows. On a desktop, the text shows while the
-pointer is over the dot. The **Labels** switch in the options hides them.
+pointer is over the dot. On visionOS (including mouse clicks in the simulator),
+tap a dot to select its text, tap another to switch, or tap the same dot again
+to hide it. Selecting a label does not pause playback. The **Labels** switch
+in the options hides them and clears the tap selection.
+Visible labels remain selectable through the model's drag bounds; a gesture
+that selects a label does not also rotate the model.
 
 | Key | Meaning |
 | --- | --- |
 | `text` | What the label says, as plain text. Long lines wrap, and `\n` starts a new one. |
 | `position` | The point, `[x, y, z]` in model units. |
 | `radius` | Optional. How near a controller's tip comes for the text to show, in model units; otherwise 3 cm in the volume. |
-| `frames` | Optional. `[first, last]`, counted from 1: the frames the label shows at. `[n]` is one frame; without `frames`, every frame. |
+| `frames` | Optional. `[first, last]`, counted from 1: the frames the label shows at. `[n]` is one frame; without `frames`, every frame. Numbers must be whole, within the timeline, and in order; an empty array is invalid. |
+
+Deleting a frame in the workspace keeps labels attached to the remaining
+frames. A label with no remaining frames is removed with its frame.
