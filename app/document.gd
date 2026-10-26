@@ -44,14 +44,13 @@ const SPIN_TIME := 0.3
 @onready var slider: HSlider = %Frame
 @onready var counter: Label = %Count
 @onready var debug_button: CheckButton = %Debug
-@onready var loop_button: CheckButton = %Loop
 @onready var probes: Node3D = %FieldProbes
 @onready var labels: Node3D = %Labels
 @onready var labels_button: CheckButton = %ShowLabels
 @onready var notes_button: Button = %NotesButton
 @onready var options_button: Button = %OptionsButton
 @onready var touch: Node = $FieldTouch
-@onready var speed_group: ButtonGroup = $Model/Options/Bar/Speeds/Speed0.button_group
+@onready var speed_group: ButtonGroup = $Model/Options/Bar/Speeds/Row/Speed0.button_group
 
 var meta := Meta.new()
 ## One per model, showing it at the current frame.
@@ -139,6 +138,7 @@ func open(path: String) -> String:
 	labels.volume = volume
 	labels.set_labels(meta.labels)
 	labels_button.visible = not meta.labels.is_empty()
+	_fit_options()
 	slider.max_value = frame_count - 1
 	seek(0)
 
@@ -209,6 +209,14 @@ func close_notes() -> void:
 	notes_button.set_pressed_no_signal(false)
 
 
+## Sizes the options to what they hold, which depends on the ZIP: a switch
+## per model, a button per field, the labels switch.
+func _fit_options() -> void:
+	var bar: Control = %Separator.get_parent()
+	var margins := bar.offset_left - bar.offset_right
+	options.size.x = ceili((bar.get_combined_minimum_size().x + margins) * options.content_scale_factor)
+
+
 func show_options(shown: bool) -> void:
 	options.visible = shown
 
@@ -223,9 +231,6 @@ func close() -> void:
 
 
 func toggle_play() -> void:
-	# Playing again after stopping at the end, without Loop, starts over.
-	if not playing and not loop_button.button_pressed and frame == frame_count - 1:
-		seek(0)
 	set_playing(not playing)
 
 
@@ -421,12 +426,7 @@ func _process(delta: float) -> void:
 	if not playing or frame_count == 0:
 		return
 	elapsed += delta * FPS * SPEEDS[speed_group.get_pressed_button().get_index()]
+	# Playback starts over after the last frame.
 	while elapsed >= 1.0:
 		elapsed -= 1.0
-		if frame + 1 < frame_count:
-			seek(frame + 1)
-		elif loop_button.button_pressed:
-			seek(0)
-		else:
-			set_playing(false)
-			return
+		seek((frame + 1) % frame_count)
