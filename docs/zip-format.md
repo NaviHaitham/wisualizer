@@ -45,6 +45,10 @@ It copies GLBs and bricks into the ZIP as they are.
     }
   ],
   "field": "B",
+  "labels": [
+    {"text": "Hall element", "position": [0, 0, 0]},
+    {"text": "The field peaks here", "position": [0, 0, 12], "radius": 4, "frames": [6, 9]}
+  ],
   "notes": "notes.txt"
 }
 ```
@@ -56,6 +60,7 @@ It copies GLBs and bricks into the ZIP as they are.
 | `models` | The geometry, all shown together in one volume, each one with a switch. A model's `path` is a GLB, shown at every frame, or a folder of GLBs, one per frame. |
 | `fields` | Values on a regular grid, which the debug view shows and controllers feel. |
 | `field` | Optional. The name of the field shown first; otherwise the first one. |
+| `labels` | Optional. Text shown at points in the volume; see [Labels](#labels). |
 | `notes` | Optional. The notes, in Godot BBCode; see the README. |
 
 ### Models
@@ -77,3 +82,25 @@ many as there are frames. Models are listed, and switched, in the order of
 | `cells` | The grid's size, in cells along x, y and z. |
 | `box` | Where the grid is, in model units: `origin` is its corner, `size` its extent. Optional `axes`, three unit vectors, turn it; they default to x, y and z. |
 | `path` | A folder of bricks, one per frame, sorted by name like a model's. Each brick is `cells` bytes in all, x fastest, then y, then z. |
+
+### Labels
+
+A label is a dot at a point in the volume, and text that shows over the dot
+while a controller's tip is near it, until the tip is 1.25 times as far; where
+labels overlap, the nearest one shows. On a desktop, the text shows while the
+pointer is over the dot. On visionOS (including mouse clicks in the simulator),
+tap a dot to select its text, tap another to switch, or tap the same dot again
+to hide it. Selecting a label does not pause playback. The **Labels** switch
+in the options hides them and clears the tap selection.
+Visible labels remain selectable through the model's drag bounds; a gesture
+that selects a label does not also rotate the model.
+
+| Key | Meaning |
+| --- | --- |
+| `text` | What the label says, as plain text. Long lines wrap, and `\n` starts a new one. |
+| `position` | The point, `[x, y, z]` in model units. |
+| `radius` | Optional. How near a controller's tip comes for the text to show, in model units; otherwise 3 cm in the volume. |
+| `frames` | Optional. `[first, last]`, counted from 1: the frames the label shows at. `[n]` is one frame; without `frames`, every frame. Numbers must be whole, within the timeline, and in order; an empty array is invalid. |
+
+Deleting a frame in the workspace keeps labels attached to the remaining
+frames. A label with no remaining frames is removed with its frame.

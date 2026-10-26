@@ -70,6 +70,9 @@ func _name_trackers() -> void:
 		return
 	_controllers[0].tracker = StringName("left_hand_%d" % id)
 	_controllers[1].tracker = StringName("right_hand_%d" % id)
+	# Setting a tracker resets its pose to "default" in Godot.
+	for controller in _controllers:
+		controller.pose = &"aim"
 
 
 ## Lets a device test confirm that button input arrives, in the Xcode console.

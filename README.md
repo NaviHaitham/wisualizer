@@ -28,7 +28,10 @@ The first window is the library. **Open…** opens a ZIP, after asking whether
 to add it to the library, which keeps a copy to open again later; pick one
 there to open it again, or delete it from the library (the original file
 stays). Each ZIP opens as its own volume, so several can be open at once. A
-ZIP with notes shows them beside the volume; see [ZIPs](#zips).
+ZIP with notes shows them beside the volume; see [ZIPs](#zips). Dots mark
+the points a ZIP has labels for: bring a controller to one, or the pointer on a
+desktop, to read it. On visionOS, tap a dot (or click it in the simulator) to
+show its text; tap the same dot again to hide it, or another dot to switch.
 
 Resize the volume from its bottom corners; marks there show where when it
 opens. On Apple Vision Pro, pinch and drag the model to turn it, like Apple's
@@ -61,6 +64,9 @@ empty one, and the pencil beside a ZIP opens it there.
   each brick (`*_meta0001` and so on), one field per variable. Set the name,
   quantity, unit and range. EnSight doesn't say what scale its bricks are at,
   so the box is fitted to the models; it can also be typed in.
+- **Labels**: text at points in the volume. **Add label** puts one at the
+  models' center; type its text and its point, in the models' units, which the
+  page shows the extent of. A radius and the frames it shows at are optional.
 - **Images**: what the notes show. **Insert into notes** adds an `[img]` tag.
 - **Notes**: BBCode on the left, as it will look on the right.
 
@@ -96,6 +102,7 @@ their `currentColor` takes the notes' text color.
 | `app/native_dialogs.gd` | Whether alerts and file pickers are the system's or Godot's |
 | `app/document.gd`, `app/document.tscn` | One opened ZIP: volume, notes, controls and options ornaments |
 | `app/model_frames.gd` | One model, loaded a few frames at a time |
+| `app/labels.gd` | A volume's labels: a dot at each point, and its text while a controller or the pointer is near |
 | `app/resize_hint.gd` | Corner marks that show the volume can be resized |
 | `app/icons/` | Button icons ([IconPark](https://iconpark.oceanengine.com/)) |
 | `ui/` | The app's look: `theme.tres` (SwiftUI-style buttons, sliders and scroll bars), the Inter font it uses on every platform, and custom controls such as `Scrubber` |

@@ -82,6 +82,16 @@ button_group = SubResource("Sections")
 text = "Fields"
 alignment = 0
 
+[node name="LabelsSection" type="Button" parent="Root/Sidebar/Column"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+tooltip_text = "Text shown at points in the volume"
+theme_type_variation = &"SidebarRow"
+toggle_mode = true
+button_group = SubResource("Sections")
+text = "Labels"
+alignment = 0
+
 [node name="ImagesSection" type="Button" parent="Root/Sidebar/Column"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
@@ -485,6 +495,144 @@ size_flags_horizontal = 3
 theme_type_variation = &"Caption"
 autowrap_mode = 3
 
+[node name="Labels" type="VBoxContainer" parent="Root/Content/Pages"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Header" type="Label" parent="Root/Content/Pages/Labels"]
+layout_mode = 2
+theme_type_variation = &"Header"
+text = "Labels"
+
+[node name="Caption" type="Label" parent="Root/Content/Pages/Labels"]
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "Text that appears at a point in the volume while a controller is near it, or while the pointer is over the point on a desktop. A dot marks each point."
+autowrap_mode = 3
+
+[node name="Gap" type="Control" parent="Root/Content/Pages/Labels"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="Row" type="HBoxContainer" parent="Root/Content/Pages/Labels"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="ListCard" type="PanelContainer" parent="Root/Content/Pages/Labels/Row"]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="Column" type="VBoxContainer" parent="Root/Content/Pages/Labels/Row/ListCard"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Toolbar" type="HBoxContainer" parent="Root/Content/Pages/Labels/Row/ListCard/Column"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="AddLabel" type="Button" parent="Root/Content/Pages/Labels/Row/ListCard/Column/Toolbar"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+tooltip_text = "Add a label at the models' center"
+size_flags_horizontal = 3
+text = "Add label"
+
+[node name="RemoveLabel" type="Button" parent="Root/Content/Pages/Labels/Row/ListCard/Column/Toolbar"]
+custom_minimum_size = Vector2(36, 36)
+layout_mode = 2
+tooltip_text = "Remove the selected label"
+theme_type_variation = &"IconButton"
+icon = ExtResource("2")
+icon_alignment = 1
+expand_icon = true
+
+[node name="LabelList" type="ItemList" parent="Root/Content/Pages/Labels/Row/ListCard/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="FormCard" type="PanelContainer" parent="Root/Content/Pages/Labels/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Card"
+
+[node name="LabelForm" type="GridContainer" parent="Root/Content/Pages/Labels/Row/FormCard"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 12
+columns = 2
+
+[node name="TextLabel" type="Label" parent="Root/Content/Pages/Labels/Row/FormCard/LabelForm"]
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+size_flags_vertical = 0
+theme_type_variation = &"FormLabel"
+text = "Text"
+
+[node name="LabelText" type="TextEdit" parent="Root/Content/Pages/Labels/Row/FormCard/LabelForm"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "What the label says; it wraps, and a new line starts a new one"
+wrap_mode = 1
+
+[node name="PositionLabel" type="Label" parent="Root/Content/Pages/Labels/Row/FormCard/LabelForm"]
+layout_mode = 2
+tooltip_text = "Where the label points, in the models' units"
+mouse_filter = 1
+theme_type_variation = &"FormLabel"
+text = "Point"
+
+[node name="LabelPosition" type="LineEdit" parent="Root/Content/Pages/Labels/Row/FormCard/LabelForm"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "x, y, z"
+
+[node name="RadiusLabel" type="Label" parent="Root/Content/Pages/Labels/Row/FormCard/LabelForm"]
+layout_mode = 2
+tooltip_text = "How near a controller comes for the text to show, in the models' units"
+mouse_filter = 1
+theme_type_variation = &"FormLabel"
+text = "Radius"
+
+[node name="LabelRadius" type="LineEdit" parent="Root/Content/Pages/Labels/Row/FormCard/LabelForm"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "3 cm in the volume"
+
+[node name="FramesLabel" type="Label" parent="Root/Content/Pages/Labels/Row/FormCard/LabelForm"]
+layout_mode = 2
+tooltip_text = "The first and last frames the label shows at"
+mouse_filter = 1
+theme_type_variation = &"FormLabel"
+text = "Frames"
+
+[node name="LabelFrames" type="LineEdit" parent="Root/Content/Pages/Labels/Row/FormCard/LabelForm"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "All; or first, last, such as 3, 8"
+
+[node name="BoundsLabel" type="Label" parent="Root/Content/Pages/Labels/Row/FormCard/LabelForm"]
+layout_mode = 2
+theme_type_variation = &"FormLabel"
+text = "Models"
+
+[node name="LabelBounds" type="Label" parent="Root/Content/Pages/Labels/Row/FormCard/LabelForm"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Caption"
+autowrap_mode = 3
+
 [node name="Images" type="VBoxContainer" parent="Root/Content/Pages"]
 visible = false
 layout_mode = 2
@@ -641,6 +789,7 @@ use_native_dialog = true
 [connection signal="pressed" from="Root/Sidebar/Column/FramesSection" to="." method="show_page" binds= ["Frames"]]
 [connection signal="pressed" from="Root/Sidebar/Column/ModelsSection" to="." method="show_page" binds= ["Models"]]
 [connection signal="pressed" from="Root/Sidebar/Column/FieldsSection" to="." method="show_page" binds= ["Fields"]]
+[connection signal="pressed" from="Root/Sidebar/Column/LabelsSection" to="." method="show_page" binds= ["Labels"]]
 [connection signal="pressed" from="Root/Sidebar/Column/ImagesSection" to="." method="show_page" binds= ["Images"]]
 [connection signal="pressed" from="Root/Sidebar/Column/NotesSection" to="." method="show_page" binds= ["Notes"]]
 [connection signal="pressed" from="Root/Sidebar/Column/Save" to="." method="save"]
@@ -666,6 +815,13 @@ use_native_dialog = true
 [connection signal="text_changed" from="Root/Content/Pages/Fields/Row/FormCard/FieldForm/Size" to="." method="edit_field" unbinds=1]
 [connection signal="pressed" from="Root/Content/Pages/Fields/Row/FormCard/FieldForm/Fit" to="." method="fit_field"]
 [connection signal="toggled" from="Root/Content/Pages/Fields/Row/FormCard/FieldForm/First" to="." method="set_first_field"]
+[connection signal="pressed" from="Root/Content/Pages/Labels/Row/ListCard/Column/Toolbar/AddLabel" to="." method="add_label"]
+[connection signal="pressed" from="Root/Content/Pages/Labels/Row/ListCard/Column/Toolbar/RemoveLabel" to="." method="remove_label"]
+[connection signal="item_selected" from="Root/Content/Pages/Labels/Row/ListCard/Column/LabelList" to="." method="show_label"]
+[connection signal="text_changed" from="Root/Content/Pages/Labels/Row/FormCard/LabelForm/LabelText" to="." method="edit_label"]
+[connection signal="text_changed" from="Root/Content/Pages/Labels/Row/FormCard/LabelForm/LabelPosition" to="." method="edit_label" unbinds=1]
+[connection signal="text_changed" from="Root/Content/Pages/Labels/Row/FormCard/LabelForm/LabelRadius" to="." method="edit_label" unbinds=1]
+[connection signal="text_changed" from="Root/Content/Pages/Labels/Row/FormCard/LabelForm/LabelFrames" to="." method="edit_label" unbinds=1]
 [connection signal="pressed" from="Root/Content/Pages/Images/Row/ListCard/Column/Toolbar/ImportImages" to="ImageFiles" method="popup_centered"]
 [connection signal="pressed" from="Root/Content/Pages/Images/Row/ListCard/Column/Toolbar/RemoveImage" to="." method="remove_image"]
 [connection signal="item_selected" from="Root/Content/Pages/Images/Row/ListCard/Column/ImageList" to="." method="show_image"]

@@ -31,7 +31,7 @@ const SPIN_TIME := 0.3
 ## The 3D nodes are found by unique name: platforms may move them within
 ## the Window.
 @onready var content: Node3D = %Content
-## Holds the model, the field box and the probes, and turns them together.
+## Holds the model, the field box, the probes and the labels, and turns them together.
 @onready var turntable: Node3D = %Turntable
 ## Where pinching and dragging the model turns it.
 @onready var grab: StaticBody3D = %Grab
@@ -46,6 +46,8 @@ const SPIN_TIME := 0.3
 @onready var debug_button: CheckButton = %Debug
 @onready var loop_button: CheckButton = %Loop
 @onready var probes: Node3D = %FieldProbes
+@onready var labels: Node3D = %Labels
+@onready var labels_button: CheckButton = %ShowLabels
 @onready var notes_button: Button = %NotesButton
 @onready var options_button: Button = %OptionsButton
 @onready var touch: Node = $FieldTouch
@@ -73,6 +75,8 @@ var _tilt_axis := Vector3.RIGHT
 ## when it began, the turn and the tilt then, and how fast the yaw was
 ## changing. The tilt is kept before its easing toward the limit.
 var _drag := -1
+## A gesture that selected a label must not also turn the model.
+var _label_touch := -1
 var _drag_start := Vector3.ZERO
 var _drag_yaw := 0.0
 var _drag_tilt := 0.0
@@ -128,6 +132,10 @@ func open(path: String) -> String:
 	probes.touch = touch
 	probes.volume = volume
 	probes.field = field
+	labels.touch = touch
+	labels.volume = volume
+	labels.set_labels(meta.labels)
+	labels_button.visible = not meta.labels.is_empty()
 	slider.max_value = frame_count - 1
 	seek(0)
 
@@ -247,6 +255,7 @@ func seek(value: float) -> void:
 		frames.show_frame(frame)
 	slider.set_value_no_signal(frame)
 	counter.text = "%d / %d" % [frame + 1, frame_count]
+	labels.frame = frame
 	update_field()
 
 
@@ -273,8 +282,20 @@ func update_field() -> void:
 ## hand. On release the tilt springs back and the turn carries on a little.
 ## Spatial events only come from visionOS; on desktop, the orbit camera
 ## turns the view instead.
-func turn_by_drag(_camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape: int) -> void:
+func turn_by_drag(camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape: int) -> void:
 	if event.is_class("InputEventSpatialTouch"):
+		if _label_touch != -1 and event.get("index") == _label_touch:
+			if not event.get("pressed") or event.get("canceled"):
+				_label_touch = -1
+			return
+		if event.get("canceled"):
+			if event.get("index") == _drag:
+				_drag = -1
+				_tilt_target = 0.0
+			return
+		if event.get("pressed") and _drag < 0 and labels.select_from_spatial_touch(camera, event):
+			_label_touch = event.get("index")
+			return
 		if event.get("pressed") and _drag < 0:
 			_begin_drag(event.get("index"), event.get("world_position"))
 		elif not event.get("pressed") and event.get("index") == _drag:
@@ -283,6 +304,8 @@ func turn_by_drag(_camera: Node, event: InputEvent, _position: Vector3, _normal:
 			_yaw_target += clampf(_yaw_speed * SPIN_TIME, -PI, PI)
 		return
 	if not event.is_class("InputEventSpatialDrag"):
+		return
+	if _label_touch != -1 and event.get("index") == _label_touch:
 		return
 	var at: Vector3 = event.get("world_position")
 	if _drag < 0:
@@ -345,7 +368,7 @@ func _place_turntable() -> void:
 	turntable.transform = Transform3D(turn, _center - turn * _center)
 
 
-## Frames the volume on the model so it can turn any way without leaving
+## Frames the volume on the model and labels so they can turn without leaving
 ## the volume or changing size: on a sphere about its center that reaches
 ## its farthest vertex. The field box, shown only while debugging, may reach
 ## past it.
@@ -361,16 +384,23 @@ func fit() -> void:
 	if bounds.size == Vector3.ZERO:
 		for box in boxes:
 			bounds = box if bounds.size == Vector3.ZERO else bounds.merge(box)
+	# A document can contain just labels, with no model or field to frame.
+	if bounds.size == Vector3.ZERO and not meta.labels.is_empty():
+		bounds = AABB(meta.labels[0].position, Vector3.ZERO)
+		for label: Meta.PointLabel in meta.labels:
+			bounds = bounds.expand(label.position)
 	_center = bounds.get_center()
 	_radius = 0.0
 	for frames in models:
 		_radius = maxf(_radius, frames.get_radius(_center))
 	if is_zero_approx(_radius):
 		_radius = maxf(bounds.size.length() * 0.5, 0.001)
+	for label: Meta.PointLabel in meta.labels:
+		_radius = maxf(_radius, label.position.distance_to(_center))
 	# The model is grabbed by its bounds, which stay inside the volume and
 	# leave the space around the model for moving the window.
 	grab.position = _center
-	(grab.get_node("Shape").shape as BoxShape3D).size = bounds.size.max(Vector3.ONE * bounds.size[bounds.size.max_axis_index()] * 0.02)
+	(grab.get_node("Shape").shape as BoxShape3D).size = bounds.size.max(Vector3.ONE * maxf(bounds.size[bounds.size.max_axis_index()] * 0.02, 0.001))
 	_place_turntable()
 	var volume_size := volume.get_measured_size()
 	# Before the native window reports its size, use the size it opens at.

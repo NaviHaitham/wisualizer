@@ -1,6 +1,6 @@
 extends Window
 ## The desktop's editor for a ZIP: a window where GLBs, bricks and images
-## are imported, frames, models and fields are set, and the notes are
+## are imported, frames, models, fields and labels are set, and the notes are
 ## written with a live preview, then saved as a ZIP in the library. Edits
 ## a [Draft]; see docs/zip-format.md for what it saves.
 
@@ -23,6 +23,8 @@ var _image_preview := NotesImages.new()
 var _preview_timer: SceneTreeTimer
 ## Set while the forms show a draft, so their edits aren't taken as changes.
 var _filling := false
+var _label_inputs := {}
+var _label_errors := {}
 
 
 ## Starts on the ZIP at [param path], or empty for a new one saved there.
@@ -44,6 +46,8 @@ func start(path: String) -> String:
 
 
 func _show_draft() -> void:
+	_label_inputs.clear()
+	_label_errors.clear()
 	_filling = true
 	%Title.text = draft.title
 	%Editor.text = draft.notes
@@ -51,6 +55,7 @@ func _show_draft() -> void:
 	show_frames()
 	show_models()
 	show_fields()
+	show_labels()
 	show_images()
 	refresh_preview()
 
@@ -59,6 +64,8 @@ func _show_draft() -> void:
 func show_page(page_name: String) -> void:
 	for page in %Pages.get_children():
 		page.visible = page.name == page_name
+	if page_name == "Labels":
+		_show_model_bounds()
 	# Through its group, so the other sections let go; only toggled fires.
 	(%Pages.get_node("../../Sidebar/Column/%sSection" % page_name) as Button).button_pressed = true
 
@@ -78,7 +85,7 @@ func edit_title(text: String) -> void:
 func save(play := false) -> void:
 	if _save_thread:
 		return
-	var problem := draft.problems()
+	var problem: String = _label_errors.values()[0] if not _label_errors.is_empty() else draft.problems()
 	if not problem.is_empty():
 		_show_status(problem)
 		return
@@ -94,6 +101,8 @@ func _finish_save(error: String, play: bool) -> void:
 	_save_thread = null
 	_set_busy(false, error if not error.is_empty() else "Saved")
 	if error.is_empty():
+		_label_inputs.clear()
+		_label_errors.clear()
 		# Sources now point into the saved ZIP.
 		show_models()
 		show_fields()
@@ -127,6 +136,9 @@ func _show_target() -> void:
 
 
 func _set_busy(busy: bool, status: String) -> void:
+	if busy:
+		gui_release_focus()
+	$Root.process_mode = Node.PROCESS_MODE_DISABLED if busy else Node.PROCESS_MODE_INHERIT
 	%Save.disabled = busy
 	%SaveAs.disabled = busy
 	%Preview.disabled = busy
@@ -183,9 +195,23 @@ func remove_frame() -> void:
 			elif frame > index:
 				bricks[frame - 1] = field.bricks[frame]
 		field.bricks = bricks
+	# Labels with no surviving frames leave with their last frame. In
+	# particular, never turn an explicit last frame of 0 into the -1 default.
+	for label_index in range(draft.labels.size() - 1, -1, -1):
+		var label := draft.labels[label_index]
+		# The frame was already removed, so this was the last index before it.
+		var last := label.frames.y if label.frames.y >= 0 else draft.times.size()
+		if label.frames.x == last and index == last:
+			draft.labels.remove_at(label_index)
+			continue
+		if index < label.frames.x:
+			label.frames.x -= 1
+		if index <= label.frames.y:
+			label.frames.y -= 1
 	show_frames()
 	show_models()
 	show_fields()
+	show_labels()
 
 
 func edit_frame() -> void:
@@ -361,6 +387,136 @@ func remove_field() -> void:
 		if draft.first_field >= draft.fields.size():
 			draft.first_field = 0
 		show_fields(index - 1)
+
+
+# Labels
+
+## Adds a label at the models' center, and starts on its text.
+func add_label() -> void:
+	var label := Draft.PointLabel.new()
+	var bounds := draft.model_bounds()
+	if bounds.has_volume():
+		label.position = bounds.get_center()
+	draft.labels.append(label)
+	show_labels(draft.labels.size() - 1)
+	%LabelText.grab_focus()
+
+
+func show_labels(selected := -1) -> void:
+	for label in _label_errors.keys():
+		if not draft.labels.has(label):
+			_label_errors.erase(label)
+			_label_inputs.erase(label)
+	var list: ItemList = %LabelList
+	if selected < 0 and list.is_anything_selected():
+		selected = list.get_selected_items()[0]
+	list.clear()
+	for label in draft.labels:
+		list.add_item(label.title())
+	selected = clampi(selected, -1, draft.labels.size() - 1)
+	if selected >= 0:
+		list.select(selected)
+	show_label(selected)
+
+
+func show_label(index: int) -> void:
+	%LabelForm.get_parent().visible = index >= 0
+	if index < 0:
+		return
+	var label: Draft.PointLabel = draft.labels[index]
+	_filling = true
+	var inputs: Dictionary = _label_inputs.get(label, {})
+	%LabelText.text = inputs.get("text", label.text)
+	%LabelPosition.text = inputs.get("position", _vector_text(label.position))
+	%LabelRadius.text = inputs.get("radius", _number(label.radius) if label.radius > 0.0 else "")
+	if label.frames == Vector2i(0, -1):
+		%LabelFrames.text = ""
+	else:
+		var last := label.frames.y if label.frames.y >= 0 else draft.times.size() - 1
+		%LabelFrames.text = "%d, %d" % [label.frames.x + 1, last + 1]
+	%LabelFrames.text = inputs.get("frames", %LabelFrames.text)
+	_filling = false
+	_show_status(_label_errors.get(label, ""))
+
+
+func edit_label() -> void:
+	if _filling:
+		return
+	var index := _selected(%LabelList)
+	if index < 0:
+		return
+	var label: Draft.PointLabel = draft.labels[index]
+	_label_inputs[label] = {text = %LabelText.text, position = %LabelPosition.text, radius = %LabelRadius.text, frames = %LabelFrames.text}
+	label.text = %LabelText.text
+	%LabelList.set_item_text(index, label.title())
+	var problem := _label_form_problem()
+	if not problem.is_empty():
+		_label_errors[label] = problem
+		_show_status(problem)
+		return
+	_label_errors.erase(label)
+	_show_status("")
+	var position := _label_numbers(%LabelPosition.text)
+	label.position = Vector3(position[0], position[1], position[2])
+	var radius: String = %LabelRadius.text.strip_edges()
+	label.radius = radius.to_float() if not radius.is_empty() else 0.0
+	# Counted from 1, as the controls show them; one number is one frame.
+	var frames := _label_numbers(%LabelFrames.text)
+	if frames.is_empty():
+		label.frames = Vector2i(0, -1)
+	elif frames.size() <= 2:
+		label.frames = Vector2i(int(frames[0]) - 1, int(frames[-1]) - 1)
+
+
+func _label_form_problem() -> String:
+	if %LabelText.text.strip_edges().is_empty():
+		return "Enter text for the label."
+	if _label_numbers(%LabelPosition.text).size() != 3:
+		return "Point needs three finite numbers: x, y, z."
+	var radius: String = %LabelRadius.text.strip_edges()
+	if not radius.is_empty() and (not radius.is_valid_float() or not is_finite(radius.to_float()) or radius.to_float() < 0.0):
+		return "Radius must be a nonnegative number, or blank for 3 cm."
+	if not %LabelFrames.text.strip_edges().is_empty():
+		var frames := _label_numbers(%LabelFrames.text)
+		if frames.is_empty() or frames.size() > 2:
+			return "Frames needs one number, or first, last; leave blank for all frames."
+		for value in frames:
+			if value != floor(value) or value < 1 or value > draft.times.size():
+				return "Frames must be whole numbers from 1 to %d." % draft.times.size()
+		if frames[0] > frames[-1]:
+			return "The first frame must not come after the last."
+	return ""
+
+
+static func _label_numbers(text: String) -> PackedFloat64Array:
+	var values := PackedFloat64Array()
+	if text.strip_edges().is_empty():
+		return values
+	for part in text.split(","):
+		var value: String = part.strip_edges()
+		if not value.is_valid_float() or not is_finite(value.to_float()):
+			return PackedFloat64Array()
+		values.append(value.to_float())
+	return values
+
+
+func remove_label() -> void:
+	var index := _selected(%LabelList)
+	if index >= 0:
+		_label_inputs.erase(draft.labels[index])
+		_label_errors.erase(draft.labels[index])
+		draft.labels.remove_at(index)
+		show_labels(index - 1)
+
+
+## Where the models are, to place labels by. Reading every model's bounds
+## takes a while, so only while the labels show.
+func _show_model_bounds() -> void:
+	var bounds := draft.model_bounds()
+	if bounds.has_volume():
+		%LabelBounds.text = "From %s to %s, in the models' units" % [_vector_text(bounds.position), _vector_text(bounds.end)]
+	else:
+		%LabelBounds.text = "Import a GLB to see where the models are."
 
 
 # Images
