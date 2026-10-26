@@ -298,13 +298,75 @@ func problems() -> String:
 		if names.has(_folder(field.name)):
 			return "Two fields are both named %s." % field.name
 		names[_folder(field.name)] = true
+	return label_problems()
+
+
+func label_problems() -> String:
 	for label in labels:
 		if label.text.strip_edges().is_empty():
 			return "A label has no text."
+		if not label.position.is_finite() or not is_finite(label.radius) or label.radius < 0.0:
+			return "A label needs a finite position and a nonnegative radius."
 		var last := label.frames.y if label.frames.y >= 0 else times.size() - 1
 		if label.frames.x < 0 or last < label.frames.x or last >= times.size():
 			return "The label %s shows at frames %d to %d, but there are %d frames." % [label.title(), label.frames.x + 1, last + 1, times.size()]
 	return ""
+
+
+## Updates just meta.json. Model, field, note and extra ZIP members keep
+## their original paths and bytes, so an open document can refresh in place.
+func save_labels(source: String, target: String) -> String:
+	var problem := label_problems()
+	if not problem.is_empty():
+		return problem
+	var reader := ZIPReader.new()
+	if reader.open(source) != OK:
+		return "Couldn't read %s." % source
+	var manifest = JSON.parse_string(reader.read_file(Meta.MANIFEST).get_string_from_utf8())
+	if not manifest is Dictionary:
+		reader.close()
+		return "The ZIP has no valid meta.json."
+	_write_labels(manifest)
+	var temporary := target + TEMPORARY_SUFFIX
+	var packer := ZIPPacker.new()
+	if packer.open(temporary) != OK:
+		reader.close()
+		return "Couldn't write %s." % target
+	var error := OK
+	for file in reader.get_files():
+		error = packer.start_file(file)
+		if error != OK:
+			break
+		var bytes := JSON.stringify(manifest, "\t", true, true).to_utf8_buffer() if file == Meta.MANIFEST else reader.read_file(file)
+		error = packer.write_file(bytes)
+		if error != OK:
+			break
+		error = packer.close_file()
+		if error != OK:
+			break
+	var closed := packer.close()
+	reader.close()
+	if error != OK or closed != OK:
+		DirAccess.remove_absolute(temporary)
+		return "Couldn't finish writing %s." % target
+	# Rename replaces the target atomically; a failure leaves it untouched.
+	if DirAccess.rename_absolute(temporary, target) != OK:
+		DirAccess.remove_absolute(temporary)
+		return "Couldn't replace %s." % target
+	return ""
+
+
+func _write_labels(manifest: Dictionary) -> void:
+	manifest.erase("labels")
+	if not labels.is_empty():
+		manifest.labels = []
+	for label in labels:
+		var entry := {text = label.text.strip_edges(), position = _array(label.position)}
+		if label.radius > 0.0:
+			entry.radius = label.radius
+		if label.frames != Vector2i(0, -1):
+			entry.frames = [label.frames.x + 1, (label.frames.y if label.frames.y >= 0 else times.size() - 1) + 1]
+		manifest.labels.append(entry)
 
 
 ## Writes the ZIP at [param target]. Returns an empty string, or what went
@@ -348,15 +410,7 @@ func save(target: String) -> String:
 		})
 	if not fields.is_empty():
 		manifest.field = fields[clampi(first_field, 0, fields.size() - 1)].name
-	if not labels.is_empty():
-		manifest.labels = []
-	for label in labels:
-		var entry := {text = label.text.strip_edges(), position = _array(label.position)}
-		if label.radius > 0.0:
-			entry.radius = label.radius
-		if label.frames != Vector2i(0, -1):
-			entry.frames = [label.frames.x + 1, (label.frames.y if label.frames.y >= 0 else times.size() - 1) + 1]
-		manifest.labels.append(entry)
+	_write_labels(manifest)
 	if not notes.strip_edges().is_empty():
 		_store(packer, NOTES_FILE, notes.to_utf8_buffer())
 		manifest.notes = NOTES_FILE

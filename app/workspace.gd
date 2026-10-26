@@ -23,6 +23,33 @@ var _image_preview := NotesImages.new()
 var _preview_timer: SceneTreeTimer
 ## Set while the forms show a draft, so their edits aren't taken as changes.
 var _filling := false
+var _labels_only := false
+var _label_source := ""
+var _label_inputs := {}
+var _label_errors := {}
+
+
+## Opens the existing label form directly from a running volume.
+func start_labels(path: String, selected := -1) -> String:
+	_labels_only = true
+	_label_source = path
+	# visionOS uses a 2x content scale; leave room for both form columns.
+	min_size = Vector2i(1800, 1100)
+	size = Vector2i(1920, 1200)
+	var error := start(path)
+	if not error.is_empty():
+		return error
+	for section in ["Frames", "Models", "Fields", "Images", "Notes"]:
+		%Pages.get_node("../../Sidebar/Column/%sSection" % section).hide()
+	%Title.editable = false
+	%Preview.hide()
+	show_page("Labels")
+	show_labels(selected if selected >= 0 else (0 if not draft.labels.is_empty() else -1))
+	return ""
+
+
+func is_saving() -> bool:
+	return _save_thread != null
 
 
 ## Starts on the ZIP at [param path], or empty for a new one saved there.
@@ -44,6 +71,8 @@ func start(path: String) -> String:
 
 
 func _show_draft() -> void:
+	_label_inputs.clear()
+	_label_errors.clear()
 	_filling = true
 	%Title.text = draft.title
 	%Editor.text = draft.notes
@@ -81,14 +110,14 @@ func edit_title(text: String) -> void:
 func save(play := false) -> void:
 	if _save_thread:
 		return
-	var problem := draft.problems()
+	var problem: String = _label_errors.values()[0] if not _label_errors.is_empty() else (draft.label_problems() if _labels_only else draft.problems())
 	if not problem.is_empty():
 		_show_status(problem)
 		return
 	_set_busy(true, "Saving…")
 	_save_thread = Thread.new()
 	_save_thread.start(func() -> void:
-		var error := draft.save(ProjectSettings.globalize_path(target))
+		var error := draft.save_labels(ProjectSettings.globalize_path(_label_source), ProjectSettings.globalize_path(target)) if _labels_only else draft.save(ProjectSettings.globalize_path(target))
 		_finish_save.call_deferred(error, play))
 
 
@@ -97,6 +126,13 @@ func _finish_save(error: String, play: bool) -> void:
 	_save_thread = null
 	_set_busy(false, error if not error.is_empty() else "Saved")
 	if error.is_empty():
+		_label_inputs.clear()
+		_label_errors.clear()
+		if _labels_only:
+			_label_source = target
+			show_labels()
+			saved.emit(target, play)
+			return
 		# Sources now point into the saved ZIP.
 		show_models()
 		show_fields()
@@ -130,6 +166,9 @@ func _show_target() -> void:
 
 
 func _set_busy(busy: bool, status: String) -> void:
+	if busy:
+		gui_release_focus()
+	$Root.process_mode = Node.PROCESS_MODE_DISABLED if busy else Node.PROCESS_MODE_INHERIT
 	%Save.disabled = busy
 	%SaveAs.disabled = busy
 	%Preview.disabled = busy
@@ -394,6 +433,10 @@ func add_label() -> void:
 
 
 func show_labels(selected := -1) -> void:
+	for label in _label_errors.keys():
+		if not draft.labels.has(label):
+			_label_errors.erase(label)
+			_label_inputs.erase(label)
 	var list: ItemList = %LabelList
 	if selected < 0 and list.is_anything_selected():
 		selected = list.get_selected_items()[0]
@@ -412,15 +455,18 @@ func show_label(index: int) -> void:
 		return
 	var label: Draft.PointLabel = draft.labels[index]
 	_filling = true
-	%LabelText.text = label.text
-	%LabelPosition.text = _vector_text(label.position)
-	%LabelRadius.text = _number(label.radius) if label.radius > 0.0 else ""
+	var inputs: Dictionary = _label_inputs.get(label, {})
+	%LabelText.text = inputs.get("text", label.text)
+	%LabelPosition.text = inputs.get("position", _vector_text(label.position))
+	%LabelRadius.text = inputs.get("radius", _number(label.radius) if label.radius > 0.0 else "")
 	if label.frames == Vector2i(0, -1):
 		%LabelFrames.text = ""
 	else:
 		var last := label.frames.y if label.frames.y >= 0 else draft.times.size() - 1
 		%LabelFrames.text = "%d, %d" % [label.frames.x + 1, last + 1]
+	%LabelFrames.text = inputs.get("frames", %LabelFrames.text)
 	_filling = false
+	_show_status(_label_errors.get(label, ""))
 
 
 func edit_label() -> void:
@@ -430,24 +476,65 @@ func edit_label() -> void:
 	if index < 0:
 		return
 	var label: Draft.PointLabel = draft.labels[index]
+	_label_inputs[label] = {text = %LabelText.text, position = %LabelPosition.text, radius = %LabelRadius.text, frames = %LabelFrames.text}
 	label.text = %LabelText.text
 	%LabelList.set_item_text(index, label.title())
-	var position := _numbers(%LabelPosition.text)
-	if position.size() == 3:
-		label.position = Vector3(position[0], position[1], position[2])
+	var problem := _label_form_problem()
+	if not problem.is_empty():
+		_label_errors[label] = problem
+		_show_status(problem)
+		return
+	_label_errors.erase(label)
+	_show_status("")
+	var position := _label_numbers(%LabelPosition.text)
+	label.position = Vector3(position[0], position[1], position[2])
 	var radius: String = %LabelRadius.text.strip_edges()
-	label.radius = maxf(radius.to_float(), 0.0) if radius.is_valid_float() else 0.0
+	label.radius = radius.to_float() if not radius.is_empty() else 0.0
 	# Counted from 1, as the controls show them; one number is one frame.
-	var frames := _numbers(%LabelFrames.text)
+	var frames := _label_numbers(%LabelFrames.text)
 	if frames.is_empty():
 		label.frames = Vector2i(0, -1)
 	elif frames.size() <= 2:
 		label.frames = Vector2i(int(frames[0]) - 1, int(frames[-1]) - 1)
 
 
+func _label_form_problem() -> String:
+	if %LabelText.text.strip_edges().is_empty():
+		return "Enter text for the label."
+	if _label_numbers(%LabelPosition.text).size() != 3:
+		return "Point needs three finite numbers: x, y, z."
+	var radius: String = %LabelRadius.text.strip_edges()
+	if not radius.is_empty() and (not radius.is_valid_float() or not is_finite(radius.to_float()) or radius.to_float() < 0.0):
+		return "Radius must be a nonnegative number, or blank for 3 cm."
+	if not %LabelFrames.text.strip_edges().is_empty():
+		var frames := _label_numbers(%LabelFrames.text)
+		if frames.is_empty() or frames.size() > 2:
+			return "Frames needs one number, or first, last; leave blank for all frames."
+		for value in frames:
+			if value != floor(value) or value < 1 or value > draft.times.size():
+				return "Frames must be whole numbers from 1 to %d." % draft.times.size()
+		if frames[0] > frames[-1]:
+			return "The first frame must not come after the last."
+	return ""
+
+
+static func _label_numbers(text: String) -> PackedFloat64Array:
+	var values := PackedFloat64Array()
+	if text.strip_edges().is_empty():
+		return values
+	for part in text.split(","):
+		var value: String = part.strip_edges()
+		if not value.is_valid_float() or not is_finite(value.to_float()):
+			return PackedFloat64Array()
+		values.append(value.to_float())
+	return values
+
+
 func remove_label() -> void:
 	var index := _selected(%LabelList)
 	if index >= 0:
+		_label_inputs.erase(draft.labels[index])
+		_label_errors.erase(draft.labels[index])
 		draft.labels.remove_at(index)
 		show_labels(index - 1)
 
