@@ -75,6 +75,9 @@ var _tilt_axis := Vector3.RIGHT
 ## when it began, the turn and the tilt then, and how fast the yaw was
 ## changing. The tilt is kept before its easing toward the limit.
 var _drag := -1
+## The horizontal across the person's view, as the drag began: sideways
+## movement along it turns the model.
+var _drag_across := Vector3.RIGHT
 ## A gesture that selected a label must not also turn the model.
 var _label_touch := -1
 var _drag_start := Vector3.ZERO
@@ -314,7 +317,7 @@ func turn_by_drag(camera: Node, event: InputEvent, _position: Vector3, _normal: 
 		return
 	var moved := at - _drag_start
 	var turned := _yaw_target
-	_yaw_target = _drag_yaw + moved.dot(_tilt_axis) / _radius * TURN_GAIN
+	_yaw_target = _drag_yaw + moved.dot(_drag_across) / _radius * TURN_GAIN
 	var delta := maxf(get_process_delta_time(), 0.001)
 	_yaw_speed = lerpf(_yaw_speed, (_yaw_target - turned) / delta, 0.5)
 	_tilt_target = _ease_tilt(_drag_tilt - moved.y / _radius * TURN_GAIN)
@@ -332,8 +335,10 @@ func _begin_drag(index: int, at: Vector3) -> void:
 	# back, about the same axis.
 	_drag_tilt = _unease_tilt(tilt)
 	var facing := Vector3(_center.x - at.x, 0.0, _center.z - at.z)
-	if absf(tilt) < deg_to_rad(1.0) and not facing.is_zero_approx():
-		_tilt_axis = facing.normalized().cross(Vector3.UP)
+	if not facing.is_zero_approx():
+		_drag_across = facing.normalized().cross(Vector3.UP)
+	if absf(tilt) < deg_to_rad(1.0):
+		_tilt_axis = _drag_across
 
 
 ## Eases [param raw] toward [constant TILT_LIMIT] rather than stopping at it:
