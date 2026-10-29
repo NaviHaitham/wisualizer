@@ -26,6 +26,15 @@ const SETTLE_RATE := 6.0
 ## Seconds of the hand's last speed that carry on turning the model after
 ## it is let go, like a globe given a spin.
 const SPIN_TIME := 0.3
+## A controller grabs the model while one of these is held with its tip in
+## the model's bounds; touching the model alone doesn't turn it.
+const GRAB_BUTTONS: Array[StringName] = [&"trigger_click", &"grip_click"]
+## Meters from a controller, between its aim pose and its tip, within which
+## a spatial event is the controller, or the hand holding it, touching the
+## model rather than a free hand.
+const CONTROLLER_REACH := 0.08
+## Drag indices for controller grabs, clear of the system's touch indices.
+const CONTROLLER_DRAG := 1 << 40
 
 @onready var model: Window = $Model
 ## The 3D nodes are found by unique name: platforms may move them within
@@ -79,10 +88,16 @@ var _drag := -1
 var _drag_across := Vector3.RIGHT
 ## A gesture that selected a label must not also turn the model.
 var _label_touch := -1
+## The touch indices of fingers and controllers merely touching the model,
+## whose drags are ignored to the end, even if they wander from a controller.
+var _ignored_touches := {}
 var _drag_start := Vector3.ZERO
 var _drag_yaw := 0.0
 var _drag_tilt := 0.0
 var _yaw_speed := 0.0
+## Per controller, whether a grab button was held last frame: pressing one
+## takes hold, so moving into the model with it held doesn't.
+var _grab_held := {}
 ## The model's center and the radius of a sphere around it, in its own
 ## coordinates, from the last fit.
 var _center := Vector3.ZERO
@@ -287,6 +302,9 @@ func update_field() -> void:
 ## [constant TILT_LIMIT]. Both follow how far the hand has moved since the
 ## pinch began, so small jitters don't add up, and the model eases after the
 ## hand. On release the tilt springs back and the turn carries on a little.
+## Only a pinch holds the model: a finger or a controller merely touching it
+## leaves it be, and controllers grab it with their buttons, in
+## [method _grab_with_controllers].
 ## Spatial events only come from visionOS; on desktop, the orbit camera
 ## turns the view instead.
 func turn_by_drag(camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape: int) -> void:
@@ -294,6 +312,10 @@ func turn_by_drag(camera: Node, event: InputEvent, _position: Vector3, _normal: 
 		if _label_touch != -1 and event.get("index") == _label_touch:
 			if not event.get("pressed") or event.get("canceled"):
 				_label_touch = -1
+			return
+		if _ignored_touches.has(event.get("index")):
+			if not event.get("pressed") or event.get("canceled"):
+				_ignored_touches.erase(event.get("index"))
 			return
 		if event.get("canceled"):
 			if event.get("index") == _drag:
@@ -303,22 +325,103 @@ func turn_by_drag(camera: Node, event: InputEvent, _position: Vector3, _normal: 
 		if event.get("pressed") and _drag < 0 and labels.select_from_spatial_touch(camera, event):
 			_label_touch = event.get("index")
 			return
-		if event.get("pressed") and _drag < 0:
+		if event.get("pressed") and not _is_pinch(event):
+			_ignored_touches[event.get("index")] = true
+		elif event.get("pressed") and _drag < 0:
 			_begin_drag(event.get("index"), event.get("world_position"))
 		elif not event.get("pressed") and event.get("index") == _drag:
-			_drag = -1
-			_tilt_target = 0.0
-			_yaw_target += clampf(_yaw_speed * SPIN_TIME, -PI, PI)
+			_let_go()
 		return
 	if not event.is_class("InputEventSpatialDrag"):
 		return
 	if _label_touch != -1 and event.get("index") == _label_touch:
 		return
+	if _ignored_touches.has(event.get("index")):
+		return
 	var at: Vector3 = event.get("world_position")
 	if _drag < 0:
+		if not _is_pinch(event):
+			_ignored_touches[event.get("index")] = true
+			return
 		_begin_drag(event.get("index"), at - (event.get("world_relative") as Vector3))
-	if event.get("index") != _drag:
-		return
+	if event.get("index") == _drag:
+		_drag_to(at)
+
+
+## Whether a spatial event is a hand pinching the model, near or from afar.
+## The event carries no kind, but visionOS gives a pinch the hand's pose,
+## and its aim from afar, while a finger merely touching gets neither; the
+## Simulator's mouse pinches. A controller is left out whatever it carries.
+func _is_pinch(event: InputEvent) -> bool:
+	if _from_controller(event):
+		return false
+	return event.get("has_input_device_pose") or event.get("has_selection_ray")
+
+
+## Whether a spatial event comes from a controller, or the hand holding it,
+## touching the model: visionOS sends one when a controller merely bumps
+## into it. It is told by where it happens.
+func _from_controller(event: InputEvent) -> bool:
+	if _controller_at(event.get("world_position")):
+		return true
+	return event.get("has_input_device_pose") and _controller_at(event.get("input_device_pose_position"))
+
+
+## Whether a tracked controller is at [param point], in global coordinates:
+## within [constant CONTROLLER_REACH] of the line from its aim pose to its tip.
+func _controller_at(point: Vector3) -> bool:
+	for controller in volume.get_controllers():
+		if not controller.get_has_tracking_data():
+			continue
+		# The pose carries the volume's scale, so this is in meters.
+		var local := controller.global_transform.affine_inverse() * point
+		var nearest := Geometry3D.get_closest_point_to_segment(local, Vector3.ZERO, Vector3(0, 0, -touch.TIP))
+		if local.distance_to(nearest) < CONTROLLER_REACH:
+			return true
+	return false
+
+
+## Turns the model while a controller holds it: pressing a grab button with
+## the controller's tip in the model's bounds takes hold, and the model then
+## follows the tip as it follows a pinching hand, until the button is let go.
+func _grab_with_controllers() -> void:
+	var controllers := volume.get_controllers()
+	for index in controllers.size():
+		var controller := controllers[index]
+		var tracked := controller.get_has_tracking_data()
+		var held := tracked and GRAB_BUTTONS.any(controller.is_button_pressed)
+		var was_held: bool = _grab_held.get(controller, false)
+		_grab_held[controller] = held
+		var drag := CONTROLLER_DRAG + index
+		if _drag == drag:
+			if not tracked:
+				_drag = -1
+				_tilt_target = 0.0
+			elif held:
+				_drag_to(touch.tip_of(controller))
+			else:
+				_let_go()
+		elif held and not was_held and _drag < 0 and _in_bounds(touch.tip_of(controller)):
+			_begin_drag(drag, touch.tip_of(controller))
+
+
+## Whether [param point], in global coordinates, is within the model's
+## bounds, where it is grabbed.
+func _in_bounds(point: Vector3) -> bool:
+	var size := (grab.get_node("Shape").shape as BoxShape3D).size
+	return AABB(-size * 0.5, size).has_point(grab.global_transform.affine_inverse() * point)
+
+
+## Lets go of the model: the tilt springs back, and the turn carries on a
+## little at the speed it had.
+func _let_go() -> void:
+	_drag = -1
+	_tilt_target = 0.0
+	_yaw_target += clampf(_yaw_speed * SPIN_TIME, -PI, PI)
+
+
+## Follows the drag to [param at], in global coordinates.
+func _drag_to(at: Vector3) -> void:
 	var moved := at - _drag_start
 	var turned := _yaw_target
 	_yaw_target = _drag_yaw + moved.dot(_drag_across) / _radius * TURN_GAIN
@@ -414,6 +517,7 @@ func fit() -> void:
 
 
 func _process(delta: float) -> void:
+	_grab_with_controllers()
 	_ease_turn(delta)
 	if not playing or frame_count == 0:
 		return
