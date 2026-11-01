@@ -115,7 +115,6 @@ func set_labels(labels: Array[Meta.PointLabel]) -> void:
 			_targets.append(target)
 		var text := Label3D.new()
 		text.text = label.text
-		text.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		text.no_depth_test = true
 		text.font_size = FONT_SIZE
 		text.outline_size = 12
@@ -163,6 +162,7 @@ func _process(_delta: float) -> void:
 		var text := _texts[index]
 		text.visible = dot.visible and shown.has(index)
 		if text.visible:
+			volume.orient_text(text)
 			text.pixel_size = _units(label.position, TEXT_HEIGHT, TEXT_PIXELS, drawn_per_unit, camera) / FONT_SIZE
 			var offset := Vector3.UP * (dot_size * 0.5 + _units(label.position, TEXT_GAP, GAP_PIXELS, drawn_per_unit, camera))
 			# Above the dot, or below it where the top of the volume, which

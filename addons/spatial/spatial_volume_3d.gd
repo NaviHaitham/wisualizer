@@ -92,6 +92,19 @@ func get_region_size() -> Vector3:
 	return physical * (size / physical[keep_aspect])
 
 
+## Keeps [param text], which shows in this volume, readable: a billboard, but
+## on visionOS GodotRealityKit's billboard copies the head's whole rotation, so
+## text would lean as the person looks up and down, and it has no upright mode.
+## There the text faces the volume's front. Call it each frame the text shows,
+## as what holds the text may turn.
+func orient_text(text: Label3D) -> void:
+	if SpatialPlatform.current() == SpatialPlatform.Kind.VISIONOS:
+		text.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		text.basis = (text.get_parent_node_3d().global_basis.inverse() * global_basis).orthonormalized()
+	else:
+		text.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+
+
 func _update() -> void:
 	if _backend != null:
 		_backend.update()
