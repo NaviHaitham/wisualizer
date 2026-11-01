@@ -26,6 +26,9 @@ const SETTLE_RATE := 6.0
 ## Seconds of the hand's last speed that carry on turning the model after
 ## it is let go, like a globe given a spin.
 const SPIN_TIME := 0.3
+## A spatial event's kind for a finger touching, not pinching:
+## InputEventSpatialTouch.KIND_TOUCH, a class that exists only on visionOS.
+const KIND_TOUCH := 0
 ## A controller grabs the model while one of these is held with its tip in
 ## the model's bounds; touching the model alone doesn't turn it.
 const GRAB_BUTTONS: Array[StringName] = [&"trigger_click", &"grip_click"]
@@ -72,6 +75,8 @@ var playing := false
 var elapsed := 0.0
 ## The images the notes show, kept for as long as the document is open.
 var notes_images := NotesImages.new()
+## Worker tasks measuring the fields' peaks.
+var _peak_tasks: Array[int] = []
 ## How far the model is turned about the vertical, and tilted toward the
 ## person about [member _tilt_axis], now and where it is heading.
 var yaw := 0.0
@@ -136,6 +141,8 @@ func open(path: String) -> String:
 		return error
 	frame_count = meta.times.size()
 	field_index = meta.first_field
+	for index in meta.fields.size():
+		_peak_tasks.append(WorkerThreadPool.add_task(_measure_peak.bind(path, index, meta.fields[index].files)))
 	for entry in meta.models:
 		var frames := ModelFrames.new()
 		frames.setup(path, entry)
@@ -293,7 +300,37 @@ func update_field() -> void:
 	probes.visible = field.visible
 	probes.shown_field = current
 	field.transform = current.box
-	touch.set_brick(meta.read(current.files[frame]), current.cells, 255)
+	touch.set_brick(meta.read(current.files[frame]), current.cells, current.peak if current.peak > 0 else 255)
+
+
+## Finds the largest byte in a field's bricks, on a worker thread that opens
+## the ZIP itself. Controllers tap as strongly as they can there: the bricks
+## seldom come near byte 255, the top of the field's range, which can be
+## far above most of its values.
+func _measure_peak(path: String, index: int, files: PackedStringArray) -> void:
+	var zip := ZIPReader.new()
+	if zip.open(path) != OK:
+		return
+	var peak := 0
+	for file in files:
+		var bytes := zip.read_file(file)
+		if not bytes.is_empty():
+			bytes.sort()
+			peak = maxi(peak, bytes[-1])
+	zip.close()
+	_set_peak.call_deferred(index, peak)
+
+
+func _set_peak(index: int, peak: int) -> void:
+	meta.fields[index].peak = peak
+	if index == field_index:
+		update_field()
+
+
+func _exit_tree() -> void:
+	for task in _peak_tasks:
+		WorkerThreadPool.wait_for_task_completion(task)
+	_peak_tasks.clear()
 
 
 ## Turns the model as the person pinches and drags it, like Apple's globe:
@@ -349,13 +386,9 @@ func turn_by_drag(camera: Node, event: InputEvent, _position: Vector3, _normal: 
 
 
 ## Whether a spatial event is a hand pinching the model, near or from afar.
-## The event carries no kind, but visionOS gives a pinch the hand's pose,
-## and its aim from afar, while a finger merely touching gets neither; the
-## Simulator's mouse pinches. A controller is left out whatever it carries.
+## A controller is left out whatever kind it reports.
 func _is_pinch(event: InputEvent) -> bool:
-	if _from_controller(event):
-		return false
-	return event.get("has_input_device_pose") or event.get("has_selection_ray")
+	return event.get("kind") != KIND_TOUCH and not _from_controller(event)
 
 
 ## Whether a spatial event comes from a controller, or the hand holding it,
