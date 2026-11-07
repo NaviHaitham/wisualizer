@@ -47,8 +47,6 @@ func _process(_delta: float) -> void:
 		var shown: bool = touch.value_of(cell) > 0.0
 		probe.cube.visible = shown
 		probe.label.visible = shown
-		if shown:
-			volume.orient_text(probe.label)
 		if shown and (cell != probe.cell or touch.revision != probe.revision):
 			probe.cell = cell
 			probe.revision = touch.revision
@@ -65,6 +63,7 @@ func _add_probe() -> Dictionary:
 	cube.material_override = material
 	add_child(cube)
 	var label := Label3D.new()
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.no_depth_test = true
 	label.font_size = FONT_SIZE
 	label.outline_size = 12
