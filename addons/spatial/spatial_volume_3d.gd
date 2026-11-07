@@ -95,14 +95,26 @@ func get_region_size() -> Vector3:
 ## Keeps [param text], which shows in this volume, readable: a billboard, but
 ## on visionOS GodotRealityKit's billboard copies the head's whole rotation, so
 ## text would lean as the person looks up and down, and it has no upright mode.
-## There the text faces the volume's front. Call it each frame the text shows,
-## as what holds the text may turn.
-func orient_text(text: Label3D) -> void:
-	if SpatialPlatform.current() == SpatialPlatform.Kind.VISIONOS:
-		text.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-		text.basis = (text.get_parent_node_3d().global_basis.inverse() * global_basis).orthonormalized()
-	else:
+## There the text stands upright facing the volume's front or, with
+## [param turns], turns with what holds it about the vertical, leaving out any
+## lean, and turns round once it would face away, so it never reads backwards.
+## Call it each frame the text shows, as what holds the text may turn.
+func orient_text(text: Label3D, turns := false) -> void:
+	if SpatialPlatform.current() != SpatialPlatform.Kind.VISIONOS:
 		text.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		return
+	text.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	var holder := text.get_parent_node_3d().global_basis
+	var facing := Basis()
+	if turns:
+		# Where the holder's front points in the volume, less its lean: the
+		# shortest turn that stands its up upright again.
+		var turn := (global_basis.inverse() * holder).orthonormalized()
+		var front := Basis(Quaternion(turn * Vector3.UP, Vector3.UP)) * turn * Vector3.BACK
+		if front.z < 0.0:
+			front = -front
+		facing = Basis(Vector3.UP, atan2(front.x, front.z))
+	text.basis = (holder.inverse() * global_basis * facing).orthonormalized()
 
 
 func _update() -> void:
