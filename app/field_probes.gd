@@ -65,6 +65,9 @@ func _add_probe() -> Dictionary:
 	var label := Label3D.new()
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.no_depth_test = true
+	# Over the model's transparent parts, which draw at the default priority.
+	label.render_priority = RenderingServer.MATERIAL_RENDER_PRIORITY_MAX
+	label.outline_render_priority = RenderingServer.MATERIAL_RENDER_PRIORITY_MAX - 1
 	label.font_size = FONT_SIZE
 	label.outline_size = 12
 	# The label grows up from its position, so it stays clear of the cube.

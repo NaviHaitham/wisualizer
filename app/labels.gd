@@ -92,8 +92,9 @@ func set_labels(labels: Array[Meta.PointLabel]) -> void:
 		var dot := Sprite3D.new()
 		dot.texture = dot_texture
 		dot.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		# A point inside the model still shows.
+		# A point inside the model still shows, over it, with its text above.
 		dot.no_depth_test = true
+		dot.render_priority = RenderingServer.MATERIAL_RENDER_PRIORITY_MAX - 2
 		dot.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 		dot.position = label.position
 		add_child(dot)
@@ -117,6 +118,9 @@ func set_labels(labels: Array[Meta.PointLabel]) -> void:
 		text.text = label.text
 		text.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		text.no_depth_test = true
+		# Over the model's transparent parts, which draw at the default priority.
+		text.render_priority = RenderingServer.MATERIAL_RENDER_PRIORITY_MAX
+		text.outline_render_priority = RenderingServer.MATERIAL_RENDER_PRIORITY_MAX - 1
 		text.font_size = FONT_SIZE
 		text.outline_size = 12
 		text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
