@@ -106,9 +106,9 @@ func _ready() -> void:
 
 
 ## Space plays or pauses, and the arrow keys step a frame, in any of this
-## document's windows.
+## document's windows, when there are frames to play.
 func _on_window_input(event: InputEvent) -> void:
-	if frame_count == 0:
+	if frame_count < 2:
 		return
 	if event.is_action_pressed(&"play_pause"):
 		toggle_play()
@@ -145,6 +145,9 @@ func open(path: String) -> String:
 	labels.volume = volume
 	labels.set_labels(meta.labels)
 	labels_button.visible = not meta.labels.is_empty()
+	# A model that doesn't change has nothing to play.
+	for control: Control in [play_button, slider, counter, $Model/Options/Bar/SpeedLabel, $Model/Options/Bar/Speeds]:
+		control.visible = frame_count > 1
 	_fit_options()
 	slider.max_value = frame_count - 1
 	seek(0)
@@ -156,6 +159,9 @@ func open(path: String) -> String:
 	model.title = meta.title
 	%Text.text = text
 	notes_button.visible = not text.is_empty()
+	if frame_count < 2:
+		# Only the notes and options buttons are left.
+		_fit_width(controls, play_button.get_parent())
 	fit()
 	model.show()
 	controls.show()
@@ -218,9 +224,13 @@ func close_notes() -> void:
 ## Sizes the options to what they hold, which depends on the ZIP: a switch
 ## per model, a button per field, the labels switch.
 func _fit_options() -> void:
-	var bar: Control = %Separator.get_parent()
+	_fit_width(options, %Separator.get_parent())
+
+
+## Narrows or widens [param window] to the bar filling it.
+func _fit_width(window: Window, bar: Control) -> void:
 	var margins := bar.offset_left - bar.offset_right
-	options.size.x = ceili((bar.get_combined_minimum_size().x + margins) * options.content_scale_factor)
+	window.size.x = ceili((bar.get_combined_minimum_size().x + margins) * window.content_scale_factor)
 
 
 func show_options(shown: bool) -> void:
