@@ -68,6 +68,9 @@ var playing := false
 var elapsed := 0.0
 ## The images the notes show, kept for as long as the document is open.
 var notes_images := NotesImages.new()
+## The bars' sizes as ornaments, kept while they are windows of their own:
+## visionOS gives a window a larger size than an ornament's.
+var _bar_sizes := {}
 ## Worker tasks measuring the fields' peaks.
 var _peak_tasks: Array[int] = []
 ## How far the model is turned about the vertical, and tilted toward the
@@ -264,6 +267,10 @@ func _on_immersive_changed(immersive: bool) -> void:
 	for window: Window in [controls, options]:
 		var shown := window.visible
 		window.hide()
+		if immersive:
+			_bar_sizes[window] = window.size
+		elif _bar_sizes.has(window):
+			window.size = _bar_sizes[window]
 		window.placement = placement
 		window.visible = shown
 
