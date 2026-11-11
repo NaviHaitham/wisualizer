@@ -11,6 +11,7 @@
 [ext_resource type="Texture2D" path="res://app/icons/pause.svg" id="6"]
 [ext_resource type="Texture2D" path="res://app/icons/notes.svg" id="7"]
 [ext_resource type="Texture2D" path="res://app/icons/settings.svg" id="8"]
+[ext_resource type="Texture2D" path="res://app/icons/immersive.svg" id="immersive"]
 
 [sub_resource type="StandardMaterial3D" id="Edge"]
 shading_mode = 0
@@ -201,6 +202,19 @@ icon = ExtResource("8")
 icon_alignment = 1
 expand_icon = true
 
+[node name="ImmersiveButton" type="Button" parent="Model/Controls/Bar"]
+theme_type_variation = &"IconButton"
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "Show the model around you, or back in its volume"
+toggle_mode = true
+icon = ExtResource("immersive")
+icon_alignment = 1
+expand_icon = true
+
 [node name="Options" type="Window" parent="Model"]
 title = "Options"
 size = Vector2i(1480, 112)
@@ -321,3 +335,5 @@ bbcode_enabled = true
 [connection signal="close_requested" from="Model/Notes" to="." method="close_notes"]
 [connection signal="meta_clicked" from="Model/Notes/Margin/Text" to="." method="open_link"]
 [connection signal="toggled" from="Model/Controls/Bar/OptionsButton" to="." method="show_options"]
+[connection signal="toggled" from="Model/Controls/Bar/ImmersiveButton" to="Model/Volume" method="set_immersive" flags=1]
+[connection signal="immersive_changed" from="Model/Volume" to="." method="_on_immersive_changed"]

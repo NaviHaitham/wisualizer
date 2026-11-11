@@ -12,6 +12,9 @@ extends Node3D
 ## Emitted when the volume's physical size changes, such as after the person
 ## resizes it.
 signal resized(size: Vector3)
+## Emitted when the volume's world moves around the person or back into the
+## volume, also when the person leaves the immersive space themselves.
+signal immersive_changed(immersive: bool)
 
 ## Which axis of [member window_size] [member size] spans.
 enum KeepAspect {
@@ -63,6 +66,8 @@ func _enter_tree() -> void:
 			_:
 				_backend = DesktopVolume.new(self)
 		_backend.resized.connect(resized.emit)
+		if _backend.has_signal(&"immersive_changed"):
+			_backend.immersive_changed.connect(immersive_changed.emit)
 	_update()
 
 
@@ -70,6 +75,25 @@ func _enter_tree() -> void:
 ## the platform reports it.
 func get_measured_size() -> Vector3:
 	return _backend.get_measured_size() if _backend != null else Vector3.ZERO
+
+
+## Whether this platform can show the volume's world around the person: on
+## visionOS, as the app's immersive space.
+func can_be_immersive() -> bool:
+	return _backend != null and _backend.has_method(&"set_immersive")
+
+
+## Whether the volume's world is shown around the person.
+func is_immersive() -> bool:
+	return can_be_immersive() and _backend.is_immersive()
+
+
+## Shows the volume's world around the person, or back in the volume. The
+## box keeps its physical size and is placed in front of the person. The
+## Window reopens either way, with a new ID.
+func set_immersive(immersive: bool) -> void:
+	if can_be_immersive():
+		_backend.set_immersive(immersive)
 
 
 ## The tracked controllers that can reach into this volume, one per hand,

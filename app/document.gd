@@ -52,6 +52,7 @@ const KIND_TOUCH := 0
 @onready var labels_button: CheckButton = %ShowLabels
 @onready var notes_button: Button = %NotesButton
 @onready var options_button: Button = %OptionsButton
+@onready var immersive_button: Button = %ImmersiveButton
 @onready var touch: Node = $FieldTouch
 @onready var speed_group: ButtonGroup = $Model/Options/Bar/Speeds/Row/Speed0.button_group
 
@@ -159,8 +160,9 @@ func open(path: String) -> String:
 	model.title = meta.title
 	%Text.text = text
 	notes_button.visible = not text.is_empty()
+	immersive_button.visible = volume.can_be_immersive()
 	if frame_count < 2:
-		# Only the notes and options buttons are left.
+		# Only the notes, options and immersive buttons are left.
 		_fit_width(controls, play_button.get_parent())
 	fit()
 	model.show()
@@ -241,9 +243,26 @@ func show_resize_hint() -> void:
 	%ResizeHint.play(volume.get_region_size())
 
 
+## The person closed the model. Leaving the immersive space also asks to
+## close it; the volume opens again instead.
 func close() -> void:
+	if volume.is_immersive():
+		return
 	meta.close()
 	queue_free()
+
+
+## The model's Window reopened around the person or as a volume. The bars
+## hang from the volume as ornaments; the immersive space has no ornaments,
+## so there they are windows of their own.
+func _on_immersive_changed(immersive: bool) -> void:
+	immersive_button.set_pressed_no_signal(immersive)
+	var placement := Window.PLACEMENT_AUTOMATIC if immersive else Window.PLACEMENT_ORNAMENT
+	for window: Window in [controls, options]:
+		var shown := window.visible
+		window.hide()
+		window.placement = placement
+		window.visible = shown
 
 
 func toggle_play() -> void:
