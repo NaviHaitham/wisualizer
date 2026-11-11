@@ -77,6 +77,21 @@ func get_measured_size() -> Vector3:
 	return _backend.get_measured_size() if _backend != null else Vector3.ZERO
 
 
+## The tracked hands that can reach into this volume: on visionOS, the
+## person's hands while the volume is immersive; none elsewhere, for now.
+## [method get_hand_joint] places their joints in this Window's world.
+func get_hands() -> Array[XRHandTracker]:
+	if _backend != null and _backend.has_method(&"get_hands"):
+		return _backend.get_hands()
+	return []
+
+
+## Where [param joint] of [param hand], one of [method get_hands], is, in
+## this Window's world.
+func get_hand_joint(hand: XRHandTracker, joint: XRHandTracker.HandJoint) -> Transform3D:
+	return _backend.get_hand_joint(hand, joint)
+
+
 ## Whether this platform can show the volume's world around the person: on
 ## visionOS, as the app's immersive space.
 func can_be_immersive() -> bool:

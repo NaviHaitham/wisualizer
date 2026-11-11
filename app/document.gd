@@ -54,6 +54,7 @@ const KIND_TOUCH := 0
 @onready var options_button: Button = %OptionsButton
 @onready var immersive_button: Button = %ImmersiveButton
 @onready var touch: Node = $FieldTouch
+@onready var sound: Node = $FieldSound
 @onready var speed_group: ButtonGroup = $Model/Options/Bar/Speeds/Row/Speed0.button_group
 
 var meta := Meta.new()
@@ -140,6 +141,8 @@ func open(path: String) -> String:
 	touch.volume = volume
 	touch.field = field
 	probes.touch = touch
+	sound.touch = touch
+	sound.volume = volume
 	probes.volume = volume
 	probes.field = field
 	labels.touch = touch

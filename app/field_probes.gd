@@ -1,8 +1,9 @@
 extends Node3D
-## Shows where each controller feels the field, like a game engine's light
-## probe debug view: the brick cell at the controller's tip as a translucent
-## cube colored by its value, and a white label over it with the cell's
-## position and value, in the field's unit. Only shows while visible.
+## Shows where each controller and hand feels the field, like a game
+## engine's light probe debug view: the brick cell at the controller's tip,
+## or the index fingertip, as a translucent cube colored by its value, and a
+## white label over it with the cell's position and value, in the field's
+## unit. Also marks the tracked hands' joints. Only shows while visible.
 ##
 ## Lives beside the Window's content, with no transform of its own, so its
 ## local coordinates are the model's.
@@ -13,6 +14,8 @@ const FONT_SIZE := 48
 ## The label's height and its gap above the cube, in meters.
 const LABEL_HEIGHT := 0.02
 const LABEL_GAP := 0.01
+## The joint markers' diameter, in meters.
+const JOINT_SIZE := 0.008
 
 ## Samples the field for us, as it does for haptics.
 var touch: Node
@@ -23,26 +26,50 @@ var field: Node3D
 var shown_field: Meta.Field
 
 var _colors := Gradient.new()
-## Per controller: its cube, its label, and the cell and brick revision
-## they show.
+## Per controller or hand: its cube, its label, and the cell and brick
+## revision they show.
 var _probes := {}
+## A dot on each joint of the tracked hands.
+var _joints := MultiMeshInstance3D.new()
 
 
 func _init() -> void:
 	# Blue to red through cyan, green and yellow, as EnSight's default palette.
 	_colors.offsets = PackedFloat32Array([0.0, 0.25, 0.5, 0.75, 1.0])
 	_colors.colors = PackedColorArray([Color(0, 0, 1), Color(0, 1, 1), Color(0, 1, 0), Color(1, 1, 0), Color(1, 0, 0)])
+	var dot := SphereMesh.new()
+	dot.radius = 0.5
+	dot.height = 1.0
+	dot.radial_segments = 8
+	dot.rings = 4
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = Color.WHITE
+	dot.material = material
+	_joints.multimesh = MultiMesh.new()
+	_joints.multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	_joints.multimesh.mesh = dot
+	add_child(_joints)
 
 
 func _process(_delta: float) -> void:
 	if not visible or volume == null:
 		return
+	# Where each controller or hand feels the field, if it is tracked.
+	var tips := {}
 	for controller in volume.get_controllers():
-		var probe: Dictionary = _probes.get(controller, {})
+		tips[controller] = touch.tip_of(controller) if controller.get_has_tracking_data() else null
+	var hands := volume.get_hands()
+	for hand in [XRServer.get_tracker(&"/user/hand_tracker/left"), XRServer.get_tracker(&"/user/hand_tracker/right")]:
+		if hand != null:
+			tips[hand] = volume.get_hand_joint(hand, XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP).origin if hand in hands else null
+	_show_joints(hands)
+	for source in tips:
+		var probe: Dictionary = _probes.get(source, {})
 		if probe.is_empty():
 			probe = _add_probe()
-			_probes[controller] = probe
-		var cell: Vector3i = touch.cell_at(touch.tip_of(controller)) if controller.get_has_tracking_data() else touch.NO_CELL
+			_probes[source] = probe
+		var cell: Vector3i = touch.cell_at(tips[source]) if tips[source] != null else touch.NO_CELL
 		# Like the haptics, only a cell with a value counts.
 		var shown: bool = touch.value_of(cell) > 0.0
 		probe.cube.visible = shown
@@ -74,6 +101,22 @@ func _add_probe() -> Dictionary:
 	label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	add_child(label)
 	return {cube = cube, label = label, cell = touch.NO_CELL, revision = -1}
+
+
+## Puts a dot on each joint of [param hands], at its physical size.
+func _show_joints(hands: Array[XRHandTracker]) -> void:
+	var count := hands.size() * XRHandTracker.HAND_JOINT_MAX
+	if _joints.multimesh.instance_count != count:
+		_joints.multimesh.instance_count = count
+	if count == 0:
+		return
+	var meters_per_unit := volume.get_measured_size()[volume.keep_aspect] / volume.size
+	var dot := Basis.from_scale(Vector3.ONE * JOINT_SIZE / meters_per_unit)
+	var to_local := global_transform.affine_inverse()
+	for h in hands.size():
+		for joint in XRHandTracker.HAND_JOINT_MAX:
+			var at := to_local * volume.get_hand_joint(hands[h], joint).origin
+			_joints.multimesh.set_instance_transform(h * XRHandTracker.HAND_JOINT_MAX + joint, Transform3D(to_local.basis * dot, at))
 
 
 ## Places the cube on [param cell] and labels it.

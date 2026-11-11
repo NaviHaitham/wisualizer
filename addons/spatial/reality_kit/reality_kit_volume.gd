@@ -86,6 +86,28 @@ func is_immersive() -> bool:
 	return _immersive
 
 
+## The person's hands, while immersive: only there does visionOS track them.
+## GodotRealityKit publishes them on the standard hand trackers, relative to
+## the current origin, which is ours.
+func get_hands() -> Array[XRHandTracker]:
+	var hands: Array[XRHandTracker] = []
+	if not _immersive:
+		return hands
+	for tracker_name in [&"/user/hand_tracker/left", &"/user/hand_tracker/right"]:
+		var hand := XRServer.get_tracker(tracker_name) as XRHandTracker
+		if hand != null and hand.has_tracking_data:
+			hands.append(hand)
+	return hands
+
+
+## As XRNode3D places a pose: its position is in meters, so it takes the
+## world scale.
+func get_hand_joint(hand: XRHandTracker, joint: XRHandTracker.HandJoint) -> Transform3D:
+	var pose := hand.get_hand_joint_transform(joint)
+	pose.origin *= _origin.world_scale
+	return _origin.global_transform * pose
+
+
 func set_immersive(immersive: bool) -> void:
 	if immersive == _immersive:
 		return
